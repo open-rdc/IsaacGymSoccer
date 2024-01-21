@@ -30,7 +30,7 @@ class Soccer:
         sim_params.physx.use_gpu = True
 
         # task-specific parameters
-        self.num_obs = 4  # pole_angle + pole_vel + cart_vel + cart_pos
+        self.num_obs = 6  # pole_angle + pole_vel + cart_vel + cart_pos
         self.num_act = 1  # force applied on the pole (-1 to 1)
         self.reset_dist = 3.0  # when to reset
         self.max_push_effort = 400.0  # the range of force applied to the cartpole
@@ -87,8 +87,9 @@ class Soccer:
 
         # define cartpole dof properties
         dof_props = self.gym.get_asset_dof_properties(cartpole_asset)
-        dof_props['driveMode'][0] = gymapi.DOF_MODE_EFFORT
-        dof_props['driveMode'][1] = gymapi.DOF_MODE_NONE
+        dof_props['driveMode'][0] = gymapi.DOF_MODE_POS
+        dof_props['driveMode'][1] = gymapi.DOF_MODE_POS
+        dof_props['driveMode'][2] = gymapi.DOF_MODE_POS
         dof_props['stiffness'][:] = 0.0
         dof_props['damping'][:] = 0.0
 
@@ -143,8 +144,8 @@ class Soccer:
             return
 
         # randomise initial positions and velocities
-        positions = 0.2 * (torch.rand((len(env_ids), self.num_dof), device=self.args.sim_device) - 0.5)
-        velocities = 0.5 * (torch.rand((len(env_ids), self.num_dof), device=self.args.sim_device) - 0.5)
+        positions = 0.0 * (torch.rand((len(env_ids), self.num_dof), device=self.args.sim_device) - 0.5)
+        velocities = 0.0 * (torch.rand((len(env_ids), self.num_dof), device=self.args.sim_device) - 0.5)
 
         self.dof_pos[env_ids, :] = positions[:]
         self.dof_vel[env_ids, :] = velocities[:]
@@ -183,7 +184,7 @@ class Soccer:
         actions_tensor = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
         actions_tensor[::self.num_dof] = actions.squeeze(-1) * self.max_push_effort
         forces = gymtorch.unwrap_tensor(actions_tensor)
-        self.gym.set_dof_actuation_force_tensor(self.sim, forces)
+        self.gym.set_dof_position_target_tensor(self.sim, forces)
 
         # simulate and render
         self.simulate()
@@ -193,12 +194,12 @@ class Soccer:
         # reset environments if required
         self.progress_buf += 1
 
-        self.get_obs()
-        self.get_reward()
+        #self.get_obs()
+        #self.get_reward()
 
 
 # define reward function using JIT
-@torch.jit.script
+#@torch.jit.script
 def compute_cartpole_reward(obs_buf, reset_dist, reset_buf, progress_buf, max_episode_length):
     # type: (Tensor, float, Tensor, Tensor, float) -> Tuple[Tensor, Tensor]
 
