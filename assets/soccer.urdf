@@ -53,4 +53,43 @@
     <origin xyz="0 0 0.3"/>
   </joint>
 
+  <link name="player2">
+    <visual>
+      <geometry>
+        <box size="0.2 0.2 0.6"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.2 0.2 0.6"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="5"/>
+      <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.08"/>
+    </inertial>
+  </link>
+  <link name="player2_x"/>
+  <link name="player2_y"/>
+
+  <joint name="player2_x_joint" type="prismatic">
+    <axis xyz="1 0 0"/>
+    <parent link="field"/>
+    <child link="player2_x"/>
+  </joint>
+
+  <joint name="player2_y_joint" type="prismatic">
+    <axis xyz="0 1 0"/>
+    <parent link="player2_x"/>
+    <child link="player2_y"/>
+  </joint>
+
+  <joint name="player2_joint" type="continuous">
+    <axis xyz="0 0 1"/>
+    <parent link="player2_y"/>
+    <child link="player2"/>
+    <origin xyz="0 0 0.3"/>
+  </joint>
+
 </robot>
