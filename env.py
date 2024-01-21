@@ -4,15 +4,13 @@ from isaacgym.torch_utils import *
 
 import torch
 
-
 """
    Cartpole environment built on top of Isaac Gym.
    Based on the official implementation here: 
    https://github.com/NVIDIA-Omniverse/IsaacGymEnvs/blob/main/isaacgymenvs/tasks/cartpole.py
 """
 
-
-class Cartpole:
+class Soccer:
     def __init__(self, args):
         self.args = args
 
@@ -76,7 +74,7 @@ class Cartpole:
 
         # add cartpole asset
         asset_root = 'assets'
-        asset_file = 'cartpole.urdf'
+        asset_file = 'soccer.urdf'
         asset_options = gymapi.AssetOptions()
         asset_options.fix_base_link = True
         cartpole_asset = self.gym.load_asset(self.sim, asset_root, asset_file, asset_options)
@@ -102,7 +100,7 @@ class Cartpole:
             env = self.gym.create_env(self.sim, lower, upper, num_per_row)
 
             # add cartpole here in each environment
-            cartpole_handle = self.gym.create_actor(env, cartpole_asset, pose, "cartpole", i, 1, 0)
+            cartpole_handle = self.gym.create_actor(env, cartpole_asset, pose, "soccer", i, 1, 0)
             self.gym.set_actor_dof_properties(env, cartpole_handle, dof_props)
 
             envs.append(env)

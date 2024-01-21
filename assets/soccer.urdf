@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<robot name="soccer">
+  <material name="white"> <color rgba="1.0 1.0 1.0 1.0"/> </material>
+  <material name="green"> <color rgba="0.2 0.6 0.2 1.0"/> </material>
+  <material name="blue"> <color rgba="0.0 0.0 1.0 1.0"/> </material>
+
+  <!-- Field -->
+  <link name="field_link">
+    <visual>
+      <geometry>
+        <box size="6.5 8 0.001"/>
+      </geometry>
+      <material name="green"/>
+    </visual>
+  </link>
+
+  <link name="player1_link">
+    <visual>
+      <geometry>
+        <box size="0.2 0.2 0.6"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.2 0.2 0.6"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="5"/>
+      <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.08"/>
+    </inertial>
+  </link>
+
+  <link name="player2_link">
+    <visual>
+      <geometry>
+        <box size="0.2 0.2 0.6"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.2 0.2 0.6"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="5"/>
+      <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.08"/>
+    </inertial>
+  </link>
+
+  <joint name="player1_joint" type="continuous">
+    <axis xyz="0 0 1"/>
+    <parent link="field_link"/>
+    <child link="player1_link"/>
+    <origin xyz="0 0 0.3"/>
+  </joint>
+  
+  <joint name="player2_joint" type="continuous">
+    <axis xyz="0 0 1"/>
+    <parent link="field_link"/>
+    <child link="player2_link"/>
+    <origin xyz="1 0 0.3"/>
+  </joint>
+
+</robot>
+
+
