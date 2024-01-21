@@ -20,7 +20,7 @@ torch.manual_seed(0)
 random.seed(0)
 
 env = Soccer(args)
-action = torch.zeros(args.num_envs, device=args.sim_device)
 while True:
+    action = 0.1*(torch.rand(args.num_envs*4*3, device=args.sim_device)-0.5)
     env.step(action)
     #env.reset()

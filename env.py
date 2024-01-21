@@ -61,15 +61,9 @@ class Soccer:
         self.reset()
 
     def create_envs(self):
-        # add ground plane
-        plane_params = gymapi.PlaneParams()
-        plane_params.normal = gymapi.Vec3(0, 0, 1)
-        self.gym.add_ground(self.sim, plane_params)
-
         # define environment space (for visualisation)
-        spacing = 12
         lower = gymapi.Vec3(0, 0, 0)
-        upper = gymapi.Vec3(spacing, spacing, spacing)
+        upper = gymapi.Vec3(12, 9, 0)
         num_per_row = int(np.sqrt(self.args.num_envs))
 
         # add cartpole asset
@@ -82,10 +76,8 @@ class Soccer:
 
         # define cartpole pose
         pose = gymapi.Transform()
-        pose.p.z = 1.0   # generate the cartpole 1m from the ground
-        pose.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)
 
-        # define cartpole dof properties
+        # define soccer dof properties
         dof_props = self.gym.get_asset_dof_properties(cartpole_asset)
         dof_props['driveMode'][:] = gymapi.DOF_MODE_POS
         dof_props['stiffness'][:] = 10000.0
@@ -177,14 +169,12 @@ class Soccer:
 
     def step(self, actions):
         # apply action
-        #actions_tensor = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
-        #actions_tensor[::self.num_dof] = actions.squeeze(-1)# * self.max_push_effort
-        actions_tensor = 0.1 * (torch.rand(self.args.num_envs * self.num_dof, device=self.args.sim_device)-0.5)
+        actions_tensor = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
+        actions_tensor[:] = actions.squeeze(-1)# * self.max_push_effort
         positions = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
         positions[:] = self.dof_pos[:].reshape(-1)
         positions += actions_tensor
 
-        print(positions)
         forces = gymtorch.unwrap_tensor(positions)
         self.gym.set_dof_position_target_tensor(self.sim, forces)
 
