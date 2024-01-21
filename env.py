@@ -30,7 +30,7 @@ class Soccer:
         sim_params.physx.use_gpu = True
 
         # task-specific parameters
-        self.num_obs = 12  # pole_angle + pole_vel + cart_vel + cart_pos
+        self.num_obs = 24  # pole_angle + pole_vel + cart_vel + cart_pos
         self.num_act = 1  # force applied on the pole (-1 to 1)
         self.reset_dist = 3.0  # when to reset
         self.max_push_effort = 400.0  # the range of force applied to the cartpole
@@ -67,7 +67,7 @@ class Soccer:
         self.gym.add_ground(self.sim, plane_params)
 
         # define environment space (for visualisation)
-        spacing = 2.5
+        spacing = 12
         lower = gymapi.Vec3(0, 0, 0)
         upper = gymapi.Vec3(spacing, spacing, spacing)
         num_per_row = int(np.sqrt(self.args.num_envs))
@@ -181,7 +181,7 @@ class Soccer:
         #actions_tensor[::self.num_dof] = actions.squeeze(-1)# * self.max_push_effort
         actions_tensor = 0.1 * (torch.rand(self.args.num_envs * self.num_dof, device=self.args.sim_device)-0.5)
         positions = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
-        positions[:] = self.dof_pos[:]
+        positions[:] = self.dof_pos[:].reshape(-1)
         positions += actions_tensor
 
         print(positions)
