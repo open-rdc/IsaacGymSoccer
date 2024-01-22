@@ -61,24 +61,43 @@ class Soccer:
         self.reset()
 
     def create_envs(self):
+        # add ground plane
+        plane_params = gymapi.PlaneParams()
+        plane_params.normal = gymapi.Vec3(0, 0, 1)
+        self.gym.add_ground(self.sim, plane_params)
+
         # define environment space (for visualisation)
         lower = gymapi.Vec3(0, 0, 0)
         upper = gymapi.Vec3(12, 9, 0)
         num_per_row = int(np.sqrt(self.args.num_envs))
 
-        # add cartpole asset
+        self.actors_per_env = 2
+        self.all_soccer_indices = self.actors_per_env * torch.arange(self.args.num_envs, dtype=torch.int32, device=self.args.sim_device)
+        
+        # create soccer asset
         asset_root = 'assets'
         asset_file = 'soccer.urdf'
         asset_options = gymapi.AssetOptions()
         asset_options.fix_base_link = True
-        cartpole_asset = self.gym.load_asset(self.sim, asset_root, asset_file, asset_options)
-        num_dof = self.gym.get_asset_dof_count(cartpole_asset)
+        asset_options.collapse_fixed_joints = True
+        soccer_asset = self.gym.load_asset(self.sim, asset_root, asset_file, asset_options)
+        num_dof = self.gym.get_asset_dof_count(soccer_asset)
+
+        # create ball asset
+        ball_asset_file = "ball.urdf"
+        ball_options = gymapi.AssetOptions()
+        ball_options.angular_damping = 0.77
+        ball_options.linear_damping = 0.77
+        ball_asset = self.gym.load_asset(self.sim, asset_root, ball_asset_file, ball_options)
+        ball_init_pose = gymapi.Transform()
+        ball_init_pose.p = gymapi.Vec3(0, 0, 0.08)
 
         # define cartpole pose
         pose = gymapi.Transform()
+        pose.p = gymapi.Vec3(0, 0, 0.01)
 
         # define soccer dof properties
-        dof_props = self.gym.get_asset_dof_properties(cartpole_asset)
+        dof_props = self.gym.get_asset_dof_properties(soccer_asset)
         dof_props['driveMode'][:] = gymapi.DOF_MODE_POS
         dof_props['stiffness'][:] = 10000.0
         dof_props['damping'][:] = 500.0
@@ -91,8 +110,10 @@ class Soccer:
             env = self.gym.create_env(self.sim, lower, upper, num_per_row)
 
             # add cartpole here in each environment
-            cartpole_handle = self.gym.create_actor(env, cartpole_asset, pose, "soccer", i, 1, 0)
-            self.gym.set_actor_dof_properties(env, cartpole_handle, dof_props)
+            soccer_handle = self.gym.create_actor(env, soccer_asset, pose, "soccer", i, 0, 0)
+            self.gym.set_actor_dof_properties(env, soccer_handle, dof_props)
+            
+            ball_handle = self.gym.create_actor(env, ball_asset, ball_init_pose, "ball", i, 1, 0)
 
             envs.append(env)
         return envs, num_dof
@@ -137,7 +158,7 @@ class Soccer:
         positions = 2.0 * (torch.rand((len(env_ids), self.num_dof), device=self.args.sim_device) - 0.5)
 
         self.dof_pos[env_ids, :] = positions[:]
-        env_ids_int32 = env_ids.to(dtype=torch.int32)
+        env_ids_int32 = self.all_soccer_indices[env_ids].flatten()
 
         # reset desired environments
         self.gym.set_dof_state_tensor_indexed(self.sim,
