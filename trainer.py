@@ -22,6 +22,6 @@ random.seed(0)
 env = Soccer(args)
 player_num = 4
 while True:
-    action = torch.randint(0, 6, (args.num_envs * player_num,), device=args.sim_device)
+    action = torch.randint(0, 9, (args.num_envs * player_num,), device=args.sim_device)
     env.step(action)
     #env.reset()

@@ -33,6 +33,7 @@ class Soccer:
         self.num_obs = 13 # self pos 3 + ball 2 + robot 4 * 2
         self.num_act = 1 #
         self.actions = torch.tensor([[1,0,0,0,0], [-1,0,0,0,0], [0,1,0,0,0], [0,-1,0,0,0], [0,0,1,0,0], [0,0,-1,0,0], [0,0,0,1,0], [0,0,0,0,1], [0,0,0,0,0]], device=self.args.sim_device)
+        #self.actions = torch.tensor([[0.3,0,0,0,0], [0.3,0,0,0,0], [0,0.2,0,0,0], [0,-0.2,0,0,0], [0,0,0.5,0,0], [0,0,-0.5,0,0], [0,0,0,1,0], [0,0,0,0,1], [0,0,0,0,0]], device=self.args.sim_device)
         #foward, backword, left, right, cw, ccw, left kick, right kick, stop
 
         self.reset_dist = 3.0  # when to reset
@@ -192,10 +193,15 @@ class Soccer:
 
     def step(self, actions):
         # apply action
+        each_dof_pos = self.dof_pos.view(self.args.num_envs * 4, 5)
+        non_zero_rows = (each_dof_pos[:, 3] > 0.1) | (each_dof_pos[:, 4] > 0.1)
+        actions[non_zero_rows] = 8
         actions_tensor = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
         actions_tensor[:] = self.actions[actions].flatten()
         positions = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
-        positions[:] = self.dof_pos[:].reshape(-1)
+        positions0 = self.dof_pos[:].reshape(self.args.num_envs * 4, 5)
+        positions0[non_zero_rows,3] = positions0[non_zero_rows,4] = 0
+        positions[:] = positions0.reshape(-1)
 
         # simulate and render
         for i in range(10):

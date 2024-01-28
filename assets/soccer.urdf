@@ -4,7 +4,7 @@
   <material name="green"> <color rgba="0.2 0.6 0.2 1.0"/> </material>
   <material name="blue"> <color rgba="0.0 0.0 1.0 1.0"/> </material>
   <material name="red"> <color rgba="1.0 0.0 0.0 1.0"/> </material>
-  <material name="black"> <color rgba="0.0 0.0 0.0 1.0"/> </material>
+  <material name="yellow"> <color rgba="1.0 1.0 0.0 1.0"/> </material>
 
   <!-- Field -->
   <link name="field">
@@ -42,7 +42,7 @@
       <geometry>
         <box size="0.05 0.1 0.2"/>
       </geometry>
-      <material name="black"/>
+      <material name="yellow"/>
     </visual>
     <collision>
       <origin xyz="0 0 -0.18"/>
@@ -61,7 +61,7 @@
       <geometry>
         <box size="0.05 0.1 0.2"/>
       </geometry>
-      <material name="black"/>
+      <material name="yellow"/>
     </visual>
     <collision>
       <origin xyz="0 0 -0.18"/>
@@ -134,7 +134,7 @@
       <geometry>
         <box size="0.05 0.1 0.2"/>
       </geometry>
-      <material name="black"/>
+      <material name="yellow"/>
     </visual>
     <collision>
       <origin xyz="0 0 -0.18"/>
@@ -153,7 +153,7 @@
       <geometry>
         <box size="0.05 0.1 0.2"/>
       </geometry>
-      <material name="black"/>
+      <material name="yellow"/>
     </visual>
     <collision>
       <origin xyz="0 0 -0.18"/>
@@ -226,7 +226,7 @@
       <geometry>
         <box size="0.05 0.1 0.2"/>
       </geometry>
-      <material name="black"/>
+      <material name="yellow"/>
     </visual>
     <collision>
       <origin xyz="0 0 -0.18"/>
@@ -245,7 +245,7 @@
       <geometry>
         <box size="0.05 0.1 0.2"/>
       </geometry>
-      <material name="black"/>
+      <material name="yellow"/>
     </visual>
     <collision>
       <origin xyz="0 0 -0.18"/>
@@ -318,7 +318,7 @@
       <geometry>
         <box size="0.05 0.1 0.2"/>
       </geometry>
-      <material name="black"/>
+      <material name="yellow"/>
     </visual>
     <collision>
       <origin xyz="0 0 -0.18"/>
@@ -337,7 +337,7 @@
       <geometry>
         <box size="0.05 0.1 0.2"/>
       </geometry>
-      <material name="black"/>
+      <material name="yellow"/>
     </visual>
     <collision>
       <origin xyz="0 0 -0.18"/>
