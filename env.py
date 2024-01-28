@@ -3,6 +3,7 @@ from isaacgym import gymtorch
 from isaacgym.torch_utils import *
 
 import torch
+import math
 
 """
    Cartpole environment built on top of Isaac Gym.
@@ -153,14 +154,20 @@ class Soccer:
         global_pos = pos[:,:2]
         global_ball = torch.repeat_interleave(self.ball_pos[:,:2], 4, dim=0)
 
-        angles = pos[:,2]
-        cos_angles = torch.cos(angles)
-        sin_angles = torch.sin(angles)
+        yaw = pos[:,2]
+        cos_angles = torch.cos(yaw)
+        sin_angles = torch.sin(yaw)
         rotation_matrix = torch.stack([cos_angles, -sin_angles, sin_angles, cos_angles], dim=1).reshape(-1, 2, 2)
+        
+        view_ratio = math.tan(math.radians(60))
+        local_ball = self.local_pos(global_ball, global_pos, rotation_matrix).squeeze()
+        out_of_view = (local_ball[:,0] * view_ratio) < torch.abs(local_ball[:,1])
+        local_ball[out_of_view, :] = -100.0
+
         obj = torch.zeros((self.args.num_envs * 4, 11), device=self.args.sim_device)
         obj[:,:2] = global_pos
-        obj[:,2] = angles
-        obj[:,3:5] = self.local_pos(global_ball, global_pos, rotation_matrix).squeeze()
+        obj[:,2] = yaw
+        obj[:,3:5] = local_ball
         global_pos3 = torch.repeat_interleave(global_pos, 3, dim=0)
         robot_pos = torch.zeros((self.args.num_envs*4*3,2), device=self.args.sim_device)
         robot_pos[0::12,:] = global_pos[1::4,:2]
@@ -177,6 +184,8 @@ class Soccer:
         robot_pos[11::12,:] = global_pos[1::4,:2]
         rotation_matrix3 = torch.repeat_interleave(rotation_matrix, 3, dim=0)
         local_robot = self.local_pos(robot_pos, global_pos3, rotation_matrix3).squeeze()
+        out_of_view = (local_robot[:,0] * view_ratio) < torch.abs(local_robot[:,1]) 
+        local_robot[out_of_view, :] = -100.0
         obj[:,5:7] = local_robot[0::3,:]
         obj[:,7:9] = local_robot[1::3,:]
         obj[:,9:11] = local_robot[2::3,:]
