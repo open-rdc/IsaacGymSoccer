@@ -19,7 +19,7 @@ class Soccer:
         sim_params.up_axis = gymapi.UP_AXIS_Z
         sim_params.gravity = gymapi.Vec3(0.0, 0.0, -9.81)
         sim_params.dt = 1 / 30.
-        sim_params.substeps = 2
+        sim_params.substeps = 1
         sim_params.use_gpu_pipeline = True
 
         # set simulation parameters (we use PhysX engine by default, these parameters are from the example file)
@@ -32,7 +32,7 @@ class Soccer:
         # task-specific parameters
         self.num_obs = 13 # self pos 3 + ball 2 + robot 4 * 2
         self.num_act = 1 #
-        self.actions = torch.tensor([[1,0,0,0,0], [-1,0,0,0,0], [0,1,0,0,0], [0,-1,0,0,0], [0,0,1,0,0], [0,0,-1,0,0], [0,0,0,1,0], [0,0,0,0,1], [0,0,0,0,0]], device=self.args.sim_device)
+        self.actions = torch.tensor([[1.0, 0.0 ,0.0 ,0.0 ,0.0], [-1.0, 0.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0, 0.0], [0.0, -1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0, 0.0], [0.0, 0.0, -1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 3.0, 0.0], [0.0, 0.0, 0.0, 0.0, 3.0], [0.0, 0.0, 0.0, 0.0, 0.0]], device=self.args.sim_device)
         #self.actions = torch.tensor([[0.3,0,0,0,0], [0.3,0,0,0,0], [0,0.2,0,0,0], [0,-0.2,0,0,0], [0,0,0.5,0,0], [0,0,-0.5,0,0], [0,0,0,1,0], [0,0,0,0,1], [0,0,0,0,0]], device=self.args.sim_device)
         #foward, backword, left, right, cw, ccw, left kick, right kick, stop
 
@@ -52,8 +52,10 @@ class Soccer:
         # initialise envs and state tensors
         self.envs, self.num_dof = self.create_envs()
 
-        _dof_states = self.gym.acquire_dof_state_tensor(self.sim)
-        dof_states = gymtorch.wrap_tensor(_dof_states)
+        dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)
+        actor_root_state = self.gym.acquire_actor_root_state_tensor(self.sim)
+        #self.root_states = gymtorch.wrap_tensor(actor_root_state).view(self.num_envs, self.actors_per_env, 13)
+        dof_states = gymtorch.wrap_tensor(dof_state_tensor)
         self.dof_states = dof_states.view(self.args.num_envs, self.num_dof * 2)
         self.dof_pos = self.dof_states.view(self.args.num_envs, self.num_dof, 2)[..., 0]
         self.dof_vel = self.dof_states.view(self.args.num_envs, self.num_dof, 2)[..., 1]
@@ -110,6 +112,8 @@ class Soccer:
 
         # generate environments
         envs = []
+        self.soccer_handles = []
+        self.ball_handles = []
         print(f'Creating {self.args.num_envs} environments.')
         for i in range(self.args.num_envs):
             # create env
@@ -118,8 +122,10 @@ class Soccer:
             # add cartpole here in each environment
             soccer_handle = self.gym.create_actor(env, soccer_asset, pose, "soccer", i, 0, 0)
             self.gym.set_actor_dof_properties(env, soccer_handle, dof_props)
-            
+            self.soccer_handles.append(soccer_handle)
+
             ball_handle = self.gym.create_actor(env, ball_asset, ball_init_pose, "ball", i, 1, 0)
+            self.ball_handles.append(ball_handle)
 
             envs.append(env)
         return envs, num_dof
@@ -133,7 +139,6 @@ class Soccer:
         return viewer
 
     def get_obs(self, env_ids=None):
-        pass
         # get state observation from each environment id
         #if env_ids is None:
         #    env_ids = torch.arange(self.args.num_envs, device=self.args.sim_device)
@@ -194,10 +199,18 @@ class Soccer:
     def step(self, actions):
         # apply action
         each_dof_pos = self.dof_pos.view(self.args.num_envs * 4, 5)
+        angles = each_dof_pos[:, 2]
+        cos_angles = torch.cos(angles)
+        sin_angles = torch.sin(angles)
+        rotation_matrix = torch.stack([cos_angles, -sin_angles, sin_angles, cos_angles], dim=1).reshape(-1, 2, 2)
         non_zero_rows = (each_dof_pos[:, 3] > 0.1) | (each_dof_pos[:, 4] > 0.1)
         actions[non_zero_rows] = 8
         actions_tensor = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
-        actions_tensor[:] = self.actions[actions].flatten()
+        actions0 = self.actions[actions]
+        translation = actions0[:, :2].unsqueeze(-1)
+        rotated_translation = torch.matmul(rotation_matrix, translation).squeeze(-1)
+        actions0[:,:2] = rotated_translation
+        actions_tensor[:] = actions0.flatten()
         positions = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
         positions0 = self.dof_pos[:].reshape(self.args.num_envs * 4, 5)
         positions0[non_zero_rows,3] = positions0[non_zero_rows,4] = 0
