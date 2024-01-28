@@ -10,7 +10,7 @@ parser.add_argument('--port', default=None, type=int)
 parser.add_argument('--sim_device', type=str, default="cuda:0", help='Physics Device in PyTorch-like syntax')
 parser.add_argument('--compute_device_id', default=0, type=int)
 parser.add_argument('--graphics_device_id', type=int, default=0, help='Graphics Device ID')
-parser.add_argument('--num_envs', default=1024, type=int)
+parser.add_argument('--num_envs', default=2, type=int)
 parser.add_argument('--headless', action='store_true')
 
 args = parser.parse_args()
@@ -20,7 +20,8 @@ torch.manual_seed(0)
 random.seed(0)
 
 env = Soccer(args)
+player_num = 4
 while True:
-    action = 0.1*(torch.rand(args.num_envs*4*3, device=args.sim_device)-0.5)
+    action = torch.randint(0, 6, (args.num_envs * player_num,), device=args.sim_device)
     env.step(action)
     #env.reset()

@@ -18,7 +18,7 @@ class Soccer:
         sim_params = gymapi.SimParams()
         sim_params.up_axis = gymapi.UP_AXIS_Z
         sim_params.gravity = gymapi.Vec3(0.0, 0.0, -9.81)
-        sim_params.dt = 1 / 60.
+        sim_params.dt = 1 / 30.
         sim_params.substeps = 2
         sim_params.use_gpu_pipeline = True
 
@@ -30,10 +30,12 @@ class Soccer:
         sim_params.physx.use_gpu = True
 
         # task-specific parameters
-        self.num_obs = 24  # pole_angle + pole_vel + cart_vel + cart_pos
-        self.num_act = 1  # force applied on the pole (-1 to 1)
+        self.num_obs = 13 # self pos 3 + ball 2 + robot 4 * 2
+        self.num_act = 1 #
+        self.actions = torch.tensor([[1,0,0,0,0], [-1,0,0,0,0], [0,1,0,0,0], [0,-1,0,0,0], [0,0,1,0,0], [0,0,-1,0,0], [0,0,0,1,0], [0,0,0,0,1], [0,0,0,0,0]], device=self.args.sim_device)
+        #foward, backword, left, right, cw, ccw, left kick, right kick, stop
+
         self.reset_dist = 3.0  # when to reset
-        self.max_push_effort = 400.0  # the range of force applied to the cartpole
         self.max_episode_length = 500  # maximum episode length
 
         # allocate buffers
@@ -48,7 +50,10 @@ class Soccer:
 
         # initialise envs and state tensors
         self.envs, self.num_dof = self.create_envs()
-        self.dof_states = self.get_states_tensor()
+
+        _dof_states = self.gym.acquire_dof_state_tensor(self.sim)
+        dof_states = gymtorch.wrap_tensor(_dof_states)
+        self.dof_states = dof_states.view(self.args.num_envs, self.num_dof * 2)
         self.dof_pos = self.dof_states.view(self.args.num_envs, self.num_dof, 2)[..., 0]
         self.dof_vel = self.dof_states.view(self.args.num_envs, self.num_dof, 2)[..., 1]
 
@@ -126,23 +131,17 @@ class Soccer:
         self.gym.viewer_camera_look_at(viewer, self.envs[self.args.num_envs // 2], cam_pos, cam_target)
         return viewer
 
-    def get_states_tensor(self):
-        # get dof state tensor (of cartpole)
-        _dof_states = self.gym.acquire_dof_state_tensor(self.sim)
-        dof_states = gymtorch.wrap_tensor(_dof_states)
-        dof_states = dof_states.view(self.args.num_envs, self.num_obs)
-        return dof_states
-
     def get_obs(self, env_ids=None):
+        pass
         # get state observation from each environment id
-        if env_ids is None:
-            env_ids = torch.arange(self.args.num_envs, device=self.args.sim_device)
+        #if env_ids is None:
+        #    env_ids = torch.arange(self.args.num_envs, device=self.args.sim_device)
 
         self.gym.refresh_dof_state_tensor(self.sim)
-        self.obs_buf[env_ids] = self.dof_states[env_ids]
+        #self.obs_buf[env_ids] = self.dof_states[env_ids]
 
     def get_reward(self):
-        self.reward_buf[:], self.reset_buf[:] = compute_cartpole_reward(self.dof_states,
+        self.reward_buf[:], self.reset_buf[:] = compute_reward(self.dof_states,
                                                                         self.reset_dist,
                                                                         self.reset_buf,
                                                                         self.progress_buf,
@@ -155,7 +154,10 @@ class Soccer:
             return
 
         # randomise initial positions and velocities
-        positions = 2.0 * (torch.rand((len(env_ids), self.num_dof), device=self.args.sim_device) - 0.5)
+        min_values = torch.tensor([-4, -2.5, 0, 0, 0, -4, -2.5, 0, 0, 0, 1, -2.5, 3.14, 0, 0, 1, -2.5, 3.14, 0, 0], device=self.args.sim_device)
+        max_values = torch.tensor([-1, 2.5, 0, 0, 0, -1, 2.5, 0, 0, 0, 4, 2.5, 3.14, 0, 0, 4, 2.5, 3.14, 0, 0], device=self.args.sim_device)
+        random_tensor = torch.rand((len(env_ids), self.num_dof), device=self.args.sim_device)
+        positions = min_values + (max_values- min_values) * random_tensor
 
         self.dof_pos[env_ids, :] = positions[:]
         env_ids_int32 = self.all_soccer_indices[env_ids].flatten()
@@ -191,18 +193,18 @@ class Soccer:
     def step(self, actions):
         # apply action
         actions_tensor = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
-        actions_tensor[:] = actions.squeeze(-1)# * self.max_push_effort
+        actions_tensor[:] = self.actions[actions].flatten()
         positions = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
         positions[:] = self.dof_pos[:].reshape(-1)
-        positions += actions_tensor
-
-        forces = gymtorch.unwrap_tensor(positions)
-        self.gym.set_dof_position_target_tensor(self.sim, forces)
 
         # simulate and render
-        self.simulate()
-        if not self.args.headless:
-            self.render()
+        for i in range(10):
+            positions += actions_tensor * 1 / 30
+            target_pos = gymtorch.unwrap_tensor(positions)
+            self.gym.set_dof_position_target_tensor(self.sim, target_pos)
+            self.simulate()
+            if not self.args.headless:
+                self.render()
 
         # reset environments if required
         self.progress_buf += 1
@@ -213,7 +215,7 @@ class Soccer:
 
 # define reward function using JIT
 #@torch.jit.script
-def compute_cartpole_reward(obs_buf, reset_dist, reset_buf, progress_buf, max_episode_length):
+def compute_reward(obs_buf, reset_dist, reset_buf, progress_buf, max_episode_length):
     # type: (Tensor, float, Tensor, Tensor, float) -> Tuple[Tensor, Tensor]
 
     # retrieve each state from observation buffer

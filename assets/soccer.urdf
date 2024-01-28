@@ -4,6 +4,7 @@
   <material name="green"> <color rgba="0.2 0.6 0.2 1.0"/> </material>
   <material name="blue"> <color rgba="0.0 0.0 1.0 1.0"/> </material>
   <material name="red"> <color rgba="1.0 0.0 0.0 1.0"/> </material>
+  <material name="black"> <color rgba="0.0 0.0 0.0 1.0"/> </material>
 
   <!-- Field -->
   <link name="field">
@@ -18,22 +19,61 @@
   <link name="player1">
     <visual>
       <geometry>
-        <box size="0.2 0.2 0.6"/>
+        <box size="0.14 0.2 0.6"/>
       </geometry>
       <material name="blue"/>
     </visual>
     <collision>
       <geometry>
-        <box size="0.2 0.2 0.6"/>
+        <box size="0.14 0.2 0.6"/>
       </geometry>
     </collision>
     <inertial>
-      <mass value="5"/>
+      <mass value="4"/>
       <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.08"/>
     </inertial>
   </link>
   <link name="player1_x"/>
   <link name="player1_y"/>
+
+  <link name="player1_right_foot">
+    <visual>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.02"/>
+    </inertial>
+  </link>
+  <link name="player1_left_foot">
+    <visual>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.02"/>
+    </inertial>
+  </link>
 
   <joint name="player1_x_joint" type="prismatic">
     <axis xyz="1 0 0"/>
@@ -51,28 +91,81 @@
     <axis xyz="0 0 1"/>
     <parent link="player1_y"/>
     <child link="player1"/>
-    <origin xyz="0 0 0.3"/>
+    <origin xyz="0.03 0 0.3"/>
+  </joint>
+
+  <joint name="player1_right_foot_joint" type="revolute">
+    <axis xyz="0 -1 0"/>
+    <parent link="player1"/>
+    <child link="player1_right_foot"/>
+    <origin xyz="0.10 -0.06 0"/>
+  </joint>
+
+  <joint name="player1_left_foot_joint" type="revolute">
+    <axis xyz="0 -1 0"/>
+    <parent link="player1"/>
+    <child link="player1_left_foot"/>
+    <origin xyz="0.10 0.06 0"/>
   </joint>
 
   <link name="player2">
     <visual>
       <geometry>
-        <box size="0.2 0.2 0.6"/>
+        <box size="0.14 0.2 0.6"/>
       </geometry>
       <material name="blue"/>
     </visual>
     <collision>
       <geometry>
-        <box size="0.2 0.2 0.6"/>
+        <box size="0.14 0.2 0.6"/>
       </geometry>
     </collision>
     <inertial>
-      <mass value="5"/>
+      <mass value="4"/>
       <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.08"/>
     </inertial>
   </link>
   <link name="player2_x"/>
   <link name="player2_y"/>
+
+  <link name="player2_right_foot">
+    <visual>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.02"/>
+    </inertial>
+  </link>
+  <link name="player2_left_foot">
+    <visual>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.02"/>
+    </inertial>
+  </link>
 
   <joint name="player2_x_joint" type="prismatic">
     <axis xyz="1 0 0"/>
@@ -90,28 +183,81 @@
     <axis xyz="0 0 1"/>
     <parent link="player2_y"/>
     <child link="player2"/>
-    <origin xyz="0 0 0.3"/>
+   <origin xyz="0.03 0 0.3"/>
+  </joint>
+
+  <joint name="player2_right_foot_joint" type="revolute">
+    <axis xyz="0 -1 0"/>
+    <parent link="player2"/>
+    <child link="player2_right_foot"/>
+    <origin xyz="0.10 -0.06 0"/>
+  </joint>
+
+  <joint name="player2_left_foot_joint" type="revolute">
+    <axis xyz="0 -1 0"/>
+    <parent link="player2"/>
+    <child link="player2_left_foot"/>
+    <origin xyz="0.10 0.06 0"/>
   </joint>
 
   <link name="player3">
     <visual>
       <geometry>
-        <box size="0.2 0.2 0.6"/>
+        <box size="0.14 0.2 0.6"/>
       </geometry>
       <material name="red"/>
     </visual>
     <collision>
       <geometry>
-        <box size="0.2 0.2 0.6"/>
+        <box size="0.14 0.2 0.6"/>
       </geometry>
     </collision>
     <inertial>
-      <mass value="5"/>
+      <mass value="4"/>
       <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.08"/>
     </inertial>
   </link>
   <link name="player3_x"/>
   <link name="player3_y"/>
+
+  <link name="player3_right_foot">
+    <visual>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.02"/>
+    </inertial>
+  </link>
+  <link name="player3_left_foot">
+    <visual>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.02"/>
+    </inertial>
+  </link>
 
   <joint name="player3_x_joint" type="prismatic">
     <axis xyz="1 0 0"/>
@@ -129,28 +275,81 @@
     <axis xyz="0 0 1"/>
     <parent link="player3_y"/>
     <child link="player3"/>
-    <origin xyz="0 0 0.3"/>
+   <origin xyz="0.03 0 0.3"/>
+  </joint>
+  
+  <joint name="player3_right_foot_joint" type="revolute">
+    <axis xyz="0 -1 0"/>
+    <parent link="player3"/>
+    <child link="player3_right_foot"/>
+    <origin xyz="0.10 -0.06 0"/>
+  </joint>
+
+  <joint name="player3_left_foot_joint" type="revolute">
+    <axis xyz="0 -1 0"/>
+    <parent link="player3"/>
+    <child link="player3_left_foot"/>
+    <origin xyz="0.10 0.06 0"/>
   </joint>
 
   <link name="player4">
     <visual>
       <geometry>
-        <box size="0.2 0.2 0.6"/>
+        <box size="0.14 0.2 0.6"/>
       </geometry>
       <material name="red"/>
     </visual>
     <collision>
       <geometry>
-        <box size="0.2 0.2 0.6"/>
+        <box size="0.14 0.2 0.6"/>
       </geometry>
     </collision>
     <inertial>
-      <mass value="5"/>
+      <mass value="4"/>
       <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.08"/>
     </inertial>
   </link>
   <link name="player4_x"/>
   <link name="player4_y"/>
+
+  <link name="player4_right_foot">
+    <visual>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.02"/>
+    </inertial>
+  </link>
+  <link name="player4_left_foot">
+    <visual>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.18"/>
+      <geometry>
+        <box size="0.05 0.1 0.2"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.02"/>
+    </inertial>
+  </link>
 
   <joint name="player4_x_joint" type="prismatic">
     <axis xyz="1 0 0"/>
@@ -168,7 +367,21 @@
     <axis xyz="0 0 1"/>
     <parent link="player4_y"/>
     <child link="player4"/>
-    <origin xyz="0 0 0.3"/>
+    <origin xyz="0.03 0 0.3"/>
+  </joint>
+  
+  <joint name="player4_right_foot_joint" type="revolute">
+    <axis xyz="0 -1 0"/>
+    <parent link="player4"/>
+    <child link="player4_right_foot"/>
+    <origin xyz="0.10 -0.06 0"/>
+  </joint>
+
+  <joint name="player4_left_foot_joint" type="revolute">
+    <axis xyz="0 -1 0"/>
+    <parent link="player4"/>
+    <child link="player4_left_foot"/>
+    <origin xyz="0.10 0.06 0"/>
   </joint>
 
   <joint name="line1_joint" type="fixed">
