@@ -54,7 +54,8 @@ class Soccer:
 
         dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)
         actor_root_state = self.gym.acquire_actor_root_state_tensor(self.sim)
-        #self.root_states = gymtorch.wrap_tensor(actor_root_state).view(self.num_envs, self.actors_per_env, 13)
+        self.root_states = gymtorch.wrap_tensor(actor_root_state).view(self.args.num_envs, self.actors_per_env, 13)
+        self.ball_pos = self.root_states[:, 1, 0:2]
         dof_states = gymtorch.wrap_tensor(dof_state_tensor)
         self.dof_states = dof_states.view(self.args.num_envs, self.num_dof * 2)
         self.dof_pos = self.dof_states.view(self.args.num_envs, self.num_dof, 2)[..., 0]
@@ -138,13 +139,49 @@ class Soccer:
         self.gym.viewer_camera_look_at(viewer, self.envs[self.args.num_envs // 2], cam_pos, cam_target)
         return viewer
 
+    def local_pos(self, global_pos, robot_xy, rotation_matrix):
+        rotated_translation = torch.matmul(rotation_matrix, (global_pos - robot_xy).unsqueeze(-1))
+        return rotated_translation
+        
     def get_obs(self, env_ids=None):
         # get state observation from each environment id
-        #if env_ids is None:
-        #    env_ids = torch.arange(self.args.num_envs, device=self.args.sim_device)
-
+        if env_ids is None:
+            env_ids = torch.arange(self.args.num_envs, device=self.args.sim_device)
+        
         self.gym.refresh_dof_state_tensor(self.sim)
-        #self.obs_buf[env_ids] = self.dof_states[env_ids]
+        pos = self.dof_pos.view(self.args.num_envs*4, 5)
+        global_pos = pos[:,:2]
+        global_ball = torch.repeat_interleave(self.ball_pos[:,:2], 4, dim=0)
+
+        angles = pos[:,2]
+        cos_angles = torch.cos(angles)
+        sin_angles = torch.sin(angles)
+        rotation_matrix = torch.stack([cos_angles, -sin_angles, sin_angles, cos_angles], dim=1).reshape(-1, 2, 2)
+        obj = torch.zeros((self.args.num_envs * 4, 11), device=self.args.sim_device)
+        obj[:,:2] = global_pos
+        obj[:,2] = angles
+        obj[:,3:5] = self.local_pos(global_ball, global_pos, rotation_matrix).squeeze()
+        global_pos3 = torch.repeat_interleave(global_pos, 3, dim=0)
+        robot_pos = torch.zeros((self.args.num_envs*4*3,2), device=self.args.sim_device)
+        robot_pos[0::12,:] = global_pos[1::4,:2]
+        robot_pos[1::12,:] = global_pos[2::4,:2]
+        robot_pos[2::12,:] = global_pos[3::4,:2]
+        robot_pos[3::12,:] = global_pos[0::4,:2]
+        robot_pos[4::12,:] = global_pos[2::4,:2]
+        robot_pos[5::12,:] = global_pos[3::4,:2]
+        robot_pos[6::12,:] = global_pos[3::4,:2]
+        robot_pos[7::12,:] = global_pos[0::4,:2]
+        robot_pos[8::12,:] = global_pos[1::4,:2]
+        robot_pos[9::12,:] = global_pos[2::4,:2]
+        robot_pos[10::12,:] = global_pos[0::4,:2]
+        robot_pos[11::12,:] = global_pos[1::4,:2]
+        rotation_matrix3 = torch.repeat_interleave(rotation_matrix, 3, dim=0)
+        local_robot = self.local_pos(robot_pos, global_pos3, rotation_matrix3).squeeze()
+        obj[:,5:7] = local_robot[0::3,:]
+        obj[:,7:9] = local_robot[1::3,:]
+        obj[:,9:11] = local_robot[2::3,:]
+        
+        return obj
 
     def get_reward(self):
         self.reward_buf[:], self.reset_buf[:] = compute_reward(self.dof_states,
