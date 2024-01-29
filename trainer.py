@@ -24,4 +24,4 @@ player_num = 4
 while True:
     action = torch.randint(0, 9, (args.num_envs * player_num,), device=args.sim_device)
     env.step(action)
-    #env.reset()
+    env.reset()
