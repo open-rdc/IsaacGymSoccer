@@ -294,6 +294,7 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_dist, reset_buf, progress_
     goal_reward = 1000.0
     velocity_reward = 1.0
     out_of_field_reward = -1.0
+    collision_reward = -1.0
     
     # goal reward
     extended_ball_pos = torch.repeat_interleave(ball_pos[:,:], num_player, dim=0)
@@ -326,6 +327,13 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_dist, reset_buf, progress_
     robot_pos = obs_buf[:, :2]
     out_of_field = (torch.abs(robot_pos[:, 0]) > 4.5) | (torch.abs(robot_pos[:, 1]) > 3.0)
     reward[out_of_field] += out_of_field_reward
+
+    # collision reward
+    collision_robot1 = torch.sum(obs_buf[:,5:7]**2, dim=1) < (0.3**2)
+    collision_robot2 = torch.sum(obs_buf[:,7:9]**2, dim=1) < (0.3**2)
+    collision_robot3 = torch.sum(obs_buf[:,9:11]**2, dim=1) < (0.3**2)
+    collision = collision_robot1 | collision_robot2 | collision_robot3
+    reward[collision] += collision_reward
 
     # reset
     reset = torch.where((torch.abs(ball_pos[:,0]) > 4.5) | (torch.abs(ball_pos[:,1]) > 3), torch.ones_like(reset_buf), reset_buf)
