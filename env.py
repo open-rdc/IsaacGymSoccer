@@ -78,11 +78,14 @@ class Soccer:
 
         # step simulation to initialise tensor buffers
         self.gym.prepare_sim(self.sim)
+        torch_zeros = lambda : torch.zeros(self.args.num_envs * int(self.num_player/2), dtype=torch.float, device=self.args.sim_device, requires_grad=False)
+        self.episode_sums = {"goal": torch_zeros(), "ball_velocity": torch_zeros(), "out_of_field": torch_zeros(), "collision": torch_zeros()}
         self.reset()
 
         self.train_team_name = "blue"
         self.copy_team_name = "red"
         self.n_agents = 2
+        self.extras = {}
 
     def create_envs(self):
         # add ground plane
@@ -212,13 +215,19 @@ class Soccer:
         self.obs_buf[expanded_env_ids] = obs[expanded_env_ids]
 
     def get_reward(self):
-        self.reward_buf[:], self.reset_buf[:] = compute_reward(self.obs_buf,
-                                                               self.ball_pos,
-                                                               self.ball_vel,
-                                                               self.reset_dist,
-                                                               self.reset_buf,
-                                                               self.progress_buf,
-                                                               self.max_episode_length)
+        self.reward_buf[:], self.reset_buf[:], rew_goal, rew_ball_vel, rew_out_of_field, rew_collision= compute_reward(
+            self.obs_buf,
+            self.ball_pos,
+            self.ball_vel,
+            self.reset_dist,
+            self.reset_buf,
+            self.progress_buf,
+            self.max_episode_length
+        )
+        self.episode_sums["goal"] += rew_goal.reshape(-1, 4)[:, :2].flatten()
+        self.episode_sums["ball_velocity"] += rew_ball_vel.reshape(-1, 4)[:, :2].flatten()
+        self.episode_sums["out_of_field"] += rew_out_of_field.reshape(-1, 4)[:, :2].flatten()
+        self.episode_sums["collision"] += rew_collision.reshape(-1, 4)[:, :2].flatten()
 
     def reset(self):
         env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
@@ -245,6 +254,7 @@ class Soccer:
         self.gym.set_dof_state_tensor_indexed(self.sim,
                                               gymtorch.unwrap_tensor(self.dof_states),
                                               gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
+
         # clear up desired buffer states
         self.reset_buf[env_ids] = 0
         self.progress_buf[env_ids] = 0
@@ -257,6 +267,14 @@ class Soccer:
         c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         available = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs,int(self.num_player/2),1))
         return obs, obs, available, c_obs, c_obs, available
+
+    def each_reward(self):
+        env_ids = torch.arange(self.args.num_envs, device=self.args.sim_device)
+        self.extras["episode"] = {}
+        for key in self.episode_sums.keys():
+            self.extras["episode"]['rew_' + key] = torch.mean(self.episode_sums[key][env_ids])
+            self.episode_sums[key][env_ids] = 0.
+        return self.extras["episode"]
 
     def simulate(self):
         # step the physics
@@ -338,9 +356,9 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_dist, reset_buf, progress_
     extended_ball_pos = torch.repeat_interleave(ball_pos[:,:], num_player, dim=0)
     extended_ball_pos[2::num_player, 0] *= -1
     extended_ball_pos[3::num_player, 0] *= -1
-    reward = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
-    reward = torch.where((extended_ball_pos[:,0] > 4.5) & (torch.abs(extended_ball_pos[:,1]) < 1.3), torch.ones_like(reward)*goal_reward, reward)
-    reward = torch.where((extended_ball_pos[:,0] < -4.5) & (torch.abs(extended_ball_pos[:,1]) < 1.3), torch.ones_like(reward)*(-goal_reward), reward)
+    rew_goal = torch.zeros(extended_ball_pos.shape[0], device=obs_buf.device)
+    rew_goal = torch.where((extended_ball_pos[:,0] > 4.5) & (torch.abs(extended_ball_pos[:,1]) < 1.3), torch.ones_like(rew_goal)*goal_reward, rew_goal)
+    rew_goal = torch.where((extended_ball_pos[:,0] < -4.5) & (torch.abs(extended_ball_pos[:,1]) < 1.3), torch.ones_like(rew_goal)*(-goal_reward), rew_goal)
     
     # ball velocity reward
     extended_ball_vel = torch.repeat_interleave(ball_vel[:,:], num_player, dim=0)
@@ -359,21 +377,25 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_dist, reset_buf, progress_
     ball_distances = torch.sum(local_ball**2, dim=1)
     without_1_0m = ball_distances > 1.0**2
     dot_products[without_1_0m] = 0.0
-    reward += dot_products * velocity_reward
+    rew_ball_vel = dot_products * velocity_reward
 
     # out of field reward
+    rew_out_of_field = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
     robot_pos = obs_buf[:, :2]
     out_of_field = (torch.abs(robot_pos[:, 0]) > 4.5) | (torch.abs(robot_pos[:, 1]) > 3.0)
-    reward[out_of_field] += out_of_field_reward
+    rew_out_of_field[out_of_field] += out_of_field_reward
 
     # collision reward
+    rew_collision = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
     collision_robot1 = torch.sum(obs_buf[:,5:7]**2, dim=1) < (0.3**2)
     collision_robot2 = torch.sum(obs_buf[:,7:9]**2, dim=1) < (0.3**2)
     collision_robot3 = torch.sum(obs_buf[:,9:11]**2, dim=1) < (0.3**2)
     collision = collision_robot1 | collision_robot2 | collision_robot3
-    reward[collision] += collision_reward
+    rew_collision[collision] += collision_reward
+
+    reward = rew_goal + rew_ball_vel + rew_out_of_field + rew_collision
 
     # reset
     reset = torch.where((torch.abs(ball_pos[:,0]) > 4.5) | (torch.abs(ball_pos[:,1]) > 3), torch.ones_like(reset_buf), reset_buf)
     reset = torch.where(progress_buf >= max_episode_length, torch.ones_like(reset_buf), reset)
-    return reward, reset
+    return reward, reset, rew_goal, rew_ball_vel, rew_out_of_field, rew_collision

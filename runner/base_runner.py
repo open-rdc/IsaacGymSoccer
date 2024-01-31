@@ -67,9 +67,9 @@ class Runner(object):
 
         share_observation_space = self.envs.share_observation_space[0] if self.use_centralized_V else self.envs.observation_space[0]
 
-        print("obs_space: ", self.envs.observation_space)
-        print("share_obs_space: ", self.envs.share_observation_space)
-        print("act_space: ", self.envs.action_space)
+        #print("obs_space: ", self.envs.observation_space)
+        #print("share_obs_space: ", self.envs.share_observation_space)
+        #print("act_space: ", self.envs.action_space)
 
         # policy network
         self.policy = Policy(self.all_args,
