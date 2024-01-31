@@ -1,9 +1,9 @@
 from isaacgym import gymapi
 from isaacgym import gymtorch
 from isaacgym.torch_utils import *
-
-import torch
 import math
+from gymnasium.spaces import Box, Discrete, Sequence
+import torch
 
 """
    Cartpole environment built on top of Isaac Gym.
@@ -30,6 +30,9 @@ class Soccer:
         sim_params.physx.contact_offset = 0.02
         sim_params.physx.use_gpu = True
 
+        self.dt = sim_params.dt
+        self.walking_period = 0.34
+
         # task-specific parameters
         self.num_obs = 11 # self pos 3 + ball 2 + robot 3 * 2
         self.num_act = 1 #
@@ -39,13 +42,17 @@ class Soccer:
         self.num_player = 4
 
         self.reset_dist = 3.0  # when to reset
-        self.max_episode_length = 500  # maximum episode length
+        self.max_episode_length = self.args.episode_length  # maximum episode length
 
         # allocate buffers
         self.obs_buf = torch.zeros((self.args.num_envs*self.num_player, self.num_obs), device=self.args.sim_device)
         self.reward_buf = torch.zeros(self.args.num_envs*self.num_player, device=self.args.sim_device)
         self.reset_buf = torch.ones(self.args.num_envs, device=self.args.sim_device, dtype=torch.long)
         self.progress_buf = torch.zeros(self.args.num_envs, device=self.args.sim_device, dtype=torch.long)
+
+        self.observation_space = [Box(low=-100, high=100, shape = ([11]), dtype=np.float16) for _ in range(int(self.args.num_envs*self.num_player/2))]
+        self.share_observation_space = [Box(low=float("-inf"), high=float("inf"), shape = ([11]), dtype=np.float32) for _ in range(int(self.args.num_envs*self.num_player/2))]
+        self.action_space = [Discrete(9) for _ in range(self.args.num_envs*self.num_player)]
 
         # acquire gym interface
         self.gym = gymapi.acquire_gym()
@@ -57,6 +64,7 @@ class Soccer:
         dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)
         actor_root_state = self.gym.acquire_actor_root_state_tensor(self.sim)
         self.root_states = gymtorch.wrap_tensor(actor_root_state).view(self.args.num_envs, self.actors_per_env, 13)
+        self.root_init_state = torch.tensor([[0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.08, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], device=self.args.sim_device)
         self.ball_pos = self.root_states[:, 1, 0:2]
         self.ball_vel = self.root_states[:, 1, 7:9]
         dof_states = gymtorch.wrap_tensor(dof_state_tensor)
@@ -72,6 +80,10 @@ class Soccer:
         self.gym.prepare_sim(self.sim)
         self.reset()
 
+        self.train_team_name = "blue"
+        self.copy_team_name = "red"
+        self.n_agents = 2
+
     def create_envs(self):
         # add ground plane
         plane_params = gymapi.PlaneParams()
@@ -85,7 +97,8 @@ class Soccer:
 
         self.actors_per_env = 2
         self.all_soccer_indices = self.actors_per_env * torch.arange(self.args.num_envs, dtype=torch.int32, device=self.args.sim_device)
-        
+        self.all_actor_indices = torch.arange(self.args.num_envs * int(self.actors_per_env), dtype=torch.int32, device=self.args.sim_device).view(self.args.num_envs, self.actors_per_env)
+
         # create soccer asset
         asset_root = 'assets'
         asset_file = 'soccer.urdf'
@@ -219,6 +232,12 @@ class Soccer:
         random_tensor = torch.rand((len(env_ids), self.num_dof), device=self.args.sim_device)
         positions = min_values + (max_values- min_values) * random_tensor
 
+        self.root_states[env_ids] = self.root_init_state
+        actor_indices = self.all_actor_indices[env_ids].flatten()
+        self.gym.set_actor_root_state_tensor_indexed(self.sim,
+                                                     gymtorch.unwrap_tensor(self.root_states),
+                                                     gymtorch.unwrap_tensor(actor_indices), len(actor_indices))
+
         self.dof_pos[env_ids, :] = positions[:]
         env_ids_int32 = self.all_soccer_indices[env_ids].flatten()
 
@@ -232,6 +251,12 @@ class Soccer:
 
         # refresh new observation after reset
         self.get_obs()
+
+        obs_mask = (torch.arange(self.obs_buf.shape[0]) % 4 <= 1)
+        obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
+        c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
+        available = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs,int(self.num_player/2),1))
+        return obs, obs, available, c_obs, c_obs, available
 
     def simulate(self):
         # step the physics
@@ -258,9 +283,10 @@ class Soccer:
         sin_angles = torch.sin(angles)
         rotation_matrix = torch.stack([cos_angles, -sin_angles, sin_angles, cos_angles], dim=1).reshape(-1, 2, 2)
         non_zero_rows = (each_dof_pos[:, 3] > 0.1) | (each_dof_pos[:, 4] > 0.1)
-        actions[non_zero_rows] = 8
+        actions_flat = torch.tensor(actions[0].flatten())
+        actions_flat[non_zero_rows] = 8
         actions_tensor = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
-        actions0 = self.actions[actions]
+        actions0 = self.actions[actions_flat]
         translation = actions0[:, :2].unsqueeze(-1)
         rotated_translation = torch.matmul(rotation_matrix, translation).squeeze(-1)
         actions0[:,:2] = rotated_translation
@@ -271,8 +297,8 @@ class Soccer:
         positions[:] = positions0.reshape(-1)
 
         # simulate and render
-        for i in range(10):
-            positions += actions_tensor * 1 / 30
+        for i in range(int(self.walking_period / self.dt)):
+            positions += actions_tensor * self.dt
             target_pos = gymtorch.unwrap_tensor(positions)
             self.gym.set_dof_position_target_tensor(self.sim, target_pos)
             self.simulate()
@@ -285,6 +311,18 @@ class Soccer:
         self.get_obs()
         self.get_reward()
 
+        obs_mask = (torch.arange(self.obs_buf.shape[0]) % 4 <= 1)
+        obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
+        c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
+        rewards = self.reward_buf[obs_mask].cpu().numpy().reshape(-1, 2, 1)
+        c_rewards = self.reward_buf[~obs_mask].cpu().numpy().reshape(-1, 2, 1)
+        dones = np.repeat(np.array([self.reset_buf.cpu().numpy()]).reshape(-1, 1), 2, axis=1)
+        infos = np.tile(np.array([{"score_reward": 0} for _ in range(int(self.num_player/2))]),(self.args.num_envs,1))
+        c_infos = np.tile(np.array([{"score_reward": 0} for _ in range(int(self.num_player/2))]),(self.args.num_envs,1))
+        available = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs,int(self.num_player/2),1))
+        c_available = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs,int(self.num_player/2),1))
+
+        return obs, obs, rewards, dones, infos, available, c_obs, c_obs, c_rewards, dones, c_infos, c_available
 
 # define reward function using JIT
 #@torch.jit.script
@@ -319,8 +357,8 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_dist, reset_buf, progress_
     dot_products = torch.bmm(unit_vectors_3d, extended_ball_vel_3d).squeeze()
     local_ball = obs_buf[:,3:5]
     ball_distances = torch.sum(local_ball**2, dim=1)
-    without_0_3m = ball_distances > 0.3**2
-    dot_products[without_0_3m] = 0.0
+    without_1_0m = ball_distances > 1.0**2
+    dot_products[without_1_0m] = 0.0
     reward += dot_products * velocity_reward
 
     # out of field reward
@@ -337,5 +375,5 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_dist, reset_buf, progress_
 
     # reset
     reset = torch.where((torch.abs(ball_pos[:,0]) > 4.5) | (torch.abs(ball_pos[:,1]) > 3), torch.ones_like(reset_buf), reset_buf)
-    reset = torch.where(progress_buf >= (max_episode_length - 1), torch.ones_like(reset_buf), reset)
+    reset = torch.where(progress_buf >= max_episode_length, torch.ones_like(reset_buf), reset)
     return reward, reset

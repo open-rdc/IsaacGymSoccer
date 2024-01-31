@@ -71,7 +71,6 @@ class Runner(object):
         print("share_obs_space: ", self.envs.share_observation_space)
         print("act_space: ", self.envs.action_space)
 
-        # train team
         # policy network
         self.policy = Policy(self.all_args,
                              self.envs.observation_space[0],
@@ -94,8 +93,7 @@ class Runner(object):
                                         self.envs.action_space[0],
                                          self.all_args.env_name)
         
-        # copy team
-        # policy network
+        # policy network (copy team)
         self.c_policy = Policy(self.all_args,
                              self.envs.observation_space[0],
                              share_observation_space,
@@ -106,18 +104,16 @@ class Runner(object):
         if self.model_dir is not None:
             self.c_restore(self.model_dir)
 
-        # algorithm
+        # algorithm (copy team)
         self.c_trainer = TrainAlgo(self.all_args, self.c_policy, self.num_agents, device=self.device)
         
-        # buffer
+        # buffer (copy team)
         self.c_buffer = SharedReplayBuffer(self.all_args,
                                         self.num_agents,
                                         self.envs.observation_space[0],
                                         share_observation_space,
                                         self.envs.action_space[0],
                                          self.all_args.env_name)
-
-
 
     def run(self):
         """Collect training data, perform training updates, and evaluate policy."""
@@ -171,6 +167,7 @@ class Runner(object):
         """Restore policy's networks from a saved model."""
         self.policy.restore(model_dir)
 
+    # copy team
     def c_restore(self, model_dir):
         """Restore policy's networks from a saved model."""
         print("model:", model_dir)
