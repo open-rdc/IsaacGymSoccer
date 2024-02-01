@@ -236,8 +236,8 @@ class Soccer:
             return
 
         # randomise initial positions and velocities
-        min_values = torch.tensor([-0.4, -0.2, 0, 0, 0, -4, -2.5, 0, 0, 0, 0.2, -0.2, 3.14, 0, 0, 1, -2.5, 3.14, 0, 0], device=self.args.sim_device)
-        max_values = torch.tensor([-0.2, 0.2, 0, 0, 0, -1, 2.5, 0, 0, 0, 0.4, 0.2, 3.14, 0, 0, 4, 2.5, 3.14, 0, 0], device=self.args.sim_device)
+        min_values = torch.tensor([-0.4, -0.2, 0, 0, 0, -4, -2.5, 0, 0, 0, 1.0, -0.2, 3.14, 0, 0, 1, -2.5, 3.14, 0, 0], device=self.args.sim_device)
+        max_values = torch.tensor([-0.2, 0.2, 0, 0, 0, -1, 2.5, 0, 0, 0, 1.2, 0.2, 3.14, 0, 0, 4, 2.5, 3.14, 0, 0], device=self.args.sim_device)
         random_tensor = torch.rand((len(env_ids), self.num_dof), device=self.args.sim_device)
         positions = min_values + (max_values- min_values) * random_tensor
 
@@ -348,9 +348,9 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_dist, reset_buf, progress_
     # type: (Tensor, float, Tensor, Tensor, float) -> Tuple[Tensor, Tensor]
     num_player = 4
     goal_reward = 1000.0
-    velocity_reward = 10.0
+    velocity_reward = 100.0
     out_of_field_reward = -0.1
-    collision_reward = -1.0
+    collision_reward = -0.1
     
     # goal reward
     extended_ball_pos = torch.repeat_interleave(ball_pos[:,:], num_player, dim=0)
