@@ -46,12 +46,13 @@ class Soccer:
 
         # allocate buffers
         self.obs_buf = torch.zeros((self.args.num_envs*self.num_player, self.num_obs), device=self.args.sim_device)
+        self.state_buf = torch.zeros((self.args.num_envs*self.num_player, self.num_obs), device=self.args.sim_device)
         self.reward_buf = torch.zeros(self.args.num_envs*self.num_player, device=self.args.sim_device)
         self.reset_buf = torch.ones(self.args.num_envs, device=self.args.sim_device, dtype=torch.long)
         self.progress_buf = torch.zeros(self.args.num_envs, device=self.args.sim_device, dtype=torch.long)
 
-        self.observation_space = [Box(low=-100, high=100, shape = ([11]), dtype=np.float16) for _ in range(int(self.args.num_envs*self.num_player/2))]
-        self.share_observation_space = [Box(low=float("-100"), high=float("100"), shape = ([11]), dtype=np.float16) for _ in range(int(self.args.num_envs*self.num_player/2))]
+        self.observation_space = [Box(low=-100, high=100, shape = ([self.num_obs]), dtype=np.float16) for _ in range(int(self.args.num_envs*self.num_player/2))]
+        self.share_observation_space = [Box(low=float("-100"), high=float("100"), shape = ([self.num_obs*int(self.num_player/2)]), dtype=np.float16) for _ in range(int(self.args.num_envs*self.num_player/2))]
         self.action_space = [Discrete(9) for _ in range(self.args.num_envs*self.num_player)]
 
         # acquire gym interface
@@ -178,11 +179,7 @@ class Soccer:
         cos_angles = torch.cos(yaw)
         sin_angles = torch.sin(yaw)
         rotation_matrix = torch.stack([cos_angles, -sin_angles, sin_angles, cos_angles], dim=1).reshape(-1, 2, 2)
-        
-        view_ratio = math.tan(math.radians(80))
         local_ball = self.local_pos(global_ball, global_pos, rotation_matrix).squeeze()
-        #out_of_view = (local_ball[:,0] * view_ratio) < torch.abs(local_ball[:,1])
-        #local_ball[out_of_view, :] = -100.0
 
         obs = torch.zeros((self.args.num_envs * self.num_player, self.num_obs), device=self.args.sim_device)
         obs[:,:2] = global_pos
@@ -204,14 +201,24 @@ class Soccer:
         robot_pos[11::12,:] = global_pos[1::4,:2]
         rotation_matrix3 = torch.repeat_interleave(rotation_matrix, 3, dim=0)
         local_robot = self.local_pos(robot_pos, global_pos3, rotation_matrix3).squeeze()
-        #out_of_view = (local_robot[:,0] * view_ratio) < torch.abs(local_robot[:,1]) 
-        #local_robot[out_of_view, :] = -100.0
         obs[:,5:7] = local_robot[0::3,:]
         obs[:,7:9] = local_robot[1::3,:]
         obs[:,9:11] = local_robot[2::3,:]
         repeated_ids = torch.repeat_interleave(env_ids, self.num_player)
         increment_ids = torch.arange(self.num_player, device=self.args.sim_device).repeat(env_ids.numel())
         expanded_env_ids = repeated_ids * 4 + increment_ids
+        self.state_buf[expanded_env_ids] = obs[expanded_env_ids]
+
+        view_ratio = math.tan(math.radians(80))
+        out_of_view = (local_ball[:,0] * view_ratio) < torch.abs(local_ball[:,1])
+        local_ball[out_of_view, :] = -100.0
+        obs[:,3:5] = local_ball
+        
+        out_of_view = (local_robot[:,0] * view_ratio) < torch.abs(local_robot[:,1]) 
+        local_robot[out_of_view, :] = -100.0
+        obs[:,5:7] = local_robot[0::3,:]
+        obs[:,7:9] = local_robot[1::3,:]
+        obs[:,9:11] = local_robot[2::3,:]
         self.obs_buf[expanded_env_ids] = obs[expanded_env_ids]
 
     def get_reward(self):
@@ -262,12 +269,17 @@ class Soccer:
         # refresh new observation after reset
         self.get_obs()
 
+        state0 = torch.empty((self.args.num_envs*self.num_player, self.num_obs*int(self.num_player/2)))
+        state0[0::2, :] = torch.hstack([self.state_buf[0::2, :], self.state_buf[1::2, :]])
+        state0[1::2, :] = torch.hstack([self.state_buf[1::2, :], self.state_buf[0::2, :]])
+        state = state0[obs_mask, :].cpu().numpy().reshape(-1, 2, 22)
+        c_state = state0[~obs_mask, :].cpu().numpy().reshape(-1, 2, 22)
         obs_mask = (torch.arange(self.obs_buf.shape[0]) % 4 <= 1)
         obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         available = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs,int(self.num_player/2),1))
         available[:,:,6:] = 0
-        return obs, obs, available, c_obs, c_obs, available
+        return obs, state, available, c_obs, c_state, available
 
     def each_reward(self):
         env_ids = torch.arange(self.args.num_envs, device=self.args.sim_device)
@@ -339,6 +351,11 @@ class Soccer:
         without_0_5m = (ball_distances > 0.5**2).cpu().numpy()
 
         obs_mask = (torch.arange(self.obs_buf.shape[0]) % 4 <= 1)
+        state0 = torch.empty((self.args.num_envs*self.num_player, self.num_obs*int(self.num_player/2)))
+        state0[0::2, :] = torch.hstack([self.state_buf[0::2, :], self.state_buf[1::2, :]])
+        state0[1::2, :] = torch.hstack([self.state_buf[1::2, :], self.state_buf[0::2, :]])
+        state = state0[obs_mask, :].cpu().numpy().reshape(-1, 2, 22)
+        c_state = state0[~obs_mask, :].cpu().numpy().reshape(-1, 2, 22)
         obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         rewards = self.reward_buf[obs_mask].cpu().numpy().reshape(-1, 2, 1)
@@ -352,7 +369,7 @@ class Soccer:
         available = avail[obs_mask].reshape(-1, 2, 9)
         c_available = avail[~obs_mask].reshape(-1, 2, 9)
 
-        return obs, obs, rewards, dones, infos, available, c_obs, c_obs, c_rewards, dones, c_infos, c_available
+        return obs, state, rewards, dones, infos, available, c_obs, c_state, c_rewards, dones, c_infos, c_available
 
 # define reward function using JIT
 #@torch.jit.script
