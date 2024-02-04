@@ -35,11 +35,18 @@ class SoccerRunner(Runner):
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic = self.collect(step)
                 c_values, c_actions, c_action_log_probs, c_rnn_states, c_rnn_states_critic = self.c_collect(step)
+                #actions[1][0][0] = 0
+                #actions[1][1][0] = 0
                 marged_actions = [np.hstack((actions.reshape(-1,2), c_actions.reshape(-1,2))).reshape(-1,2,1)]
 
                 # Obser reward and next obs
 
                 obs, share_obs, rewards, dones, infos, available_actions, c_obs, c_share_obs, c_rewards, c_dones, c_infos, c_available_actions = self.envs.step(marged_actions)
+                #print("obs[1]")
+                #print(obs[1])
+                #print("rewards[1]")
+                #print(rewards[1])
+                #input()
                 self.envs.reset()
                 dones_env = np.all(dones, axis=1)
                 reward_env = np.mean(rewards, axis=1).flatten()
