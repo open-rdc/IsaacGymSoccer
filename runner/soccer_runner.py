@@ -161,11 +161,11 @@ class SoccerRunner(Runner):
         self.c_trainer.prep_rollout()
         value, action, action_log_prob, rnn_state, rnn_state_critic \
             = self.c_trainer.policy.get_actions(np.concatenate(self.c_buffer.share_obs[step]),
-                                              np.concatenate(self.c_buffer.obs[step]),
-                                              np.concatenate(self.c_buffer.rnn_states[step]),
-                                              np.concatenate(self.c_buffer.rnn_states_critic[step]),
-                                              np.concatenate(self.c_buffer.masks[step]))
- 
+                                                np.concatenate(self.c_buffer.obs[step]),
+                                                np.concatenate(self.c_buffer.rnn_states[step]),
+                                                np.concatenate(self.c_buffer.rnn_states_critic[step]),
+                                                np.concatenate(self.c_buffer.masks[step]),
+                                                np.concatenate(self.c_buffer.available_actions[step]))
         # [self.envs, agents, dim]
         values = np.array(np.split(_t2n(value), self.n_rollout_threads))
         actions = np.array(np.split(_t2n(action), self.n_rollout_threads))

@@ -332,6 +332,12 @@ class Soccer:
         self.get_obs()
         self.get_reward()
 
+        robot_pos = self.obs_buf[:, :2]
+        global_ball = torch.repeat_interleave(self.ball_pos[:,:], self.num_player, dim=0)
+        local_ball = global_ball - robot_pos
+        ball_distances = torch.sum(local_ball**2, dim=1)
+        without_0_5m = (ball_distances > 0.5**2).cpu().numpy()
+
         obs_mask = (torch.arange(self.obs_buf.shape[0]) % 4 <= 1)
         obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
@@ -340,10 +346,11 @@ class Soccer:
         dones = np.repeat(np.array([self.reset_buf.cpu().numpy()]).reshape(-1, 1), 2, axis=1)
         infos = np.tile(np.array([{"score_reward": 0} for _ in range(int(self.num_player/2))]),(self.args.num_envs,1))
         c_infos = np.tile(np.array([{"score_reward": 0} for _ in range(int(self.num_player/2))]),(self.args.num_envs,1))
-        available = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs,int(self.num_player/2),1))
-        c_available = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs,int(self.num_player/2),1))
-        available[:,:,6:] = 0
-        c_available[:,:,6:] = 0
+        avail = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs*self.num_player,1))
+        avail[without_0_5m, 6:] = 0
+        avail[~without_0_5m, 8] = 0
+        available = avail[obs_mask].reshape(-1, 2, 9)
+        c_available = avail[~obs_mask].reshape(-1, 2, 9)
 
         return obs, obs, rewards, dones, infos, available, c_obs, c_obs, c_rewards, dones, c_infos, c_available
 
