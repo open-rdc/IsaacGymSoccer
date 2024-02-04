@@ -269,14 +269,23 @@ class Soccer:
         # refresh new observation after reset
         self.get_obs()
 
+        obs_mask = (torch.arange(self.obs_buf.shape[0]) % 4 <= 1)
         state0 = torch.empty((self.args.num_envs*self.num_player, self.num_obs*int(self.num_player/2)))
         state0[0::2, :] = torch.hstack([self.state_buf[0::2, :], self.state_buf[1::2, :]])
         state0[1::2, :] = torch.hstack([self.state_buf[1::2, :], self.state_buf[0::2, :]])
         state = state0[obs_mask, :].cpu().numpy().reshape(-1, 2, 22)
         c_state = state0[~obs_mask, :].cpu().numpy().reshape(-1, 2, 22)
-        obs_mask = (torch.arange(self.obs_buf.shape[0]) % 4 <= 1)
+        c_state[:,:,:2] = -c_state[:,:,:2]
+        c_state[:,:,2] += np.pi
+        c_state[:,:,2] = (c_state[:,:,2] + np.pi) % (2 * np.pi) - np.pi
+        c_state[:,:,11:13] = -c_state[:,:,11:13]
+        c_state[:,:,13] += np.pi
+        c_state[:,:,13] = (c_state[:,:,13] + np.pi) % (2 * np.pi) - np.pi
         obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
+        c_obs[:,:,:2] = -c_obs[:,:,:2]
+        c_obs[:,:,2] += np.pi
+        c_obs[:,:,2] = (c_obs[:,:,2] + np.pi) % (2 * np.pi) - np.pi
         available = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs,int(self.num_player/2),1))
         available[:,:,6:] = 0
         return obs, state, available, c_obs, c_state, available
@@ -356,8 +365,17 @@ class Soccer:
         state0[1::2, :] = torch.hstack([self.state_buf[1::2, :], self.state_buf[0::2, :]])
         state = state0[obs_mask, :].cpu().numpy().reshape(-1, 2, 22)
         c_state = state0[~obs_mask, :].cpu().numpy().reshape(-1, 2, 22)
+        c_state[:,:,:2] = -c_state[:,:,:2]
+        c_state[:,:,2] += np.pi
+        c_state[:,:,2] = (c_state[:,:,2] + np.pi) % (2 * np.pi) - np.pi
+        c_state[:,:,11:13] = -c_state[:,:,11:13]
+        c_state[:,:,13] += np.pi
+        c_state[:,:,13] = (c_state[:,:,13] + np.pi) % (2 * np.pi) - np.pi
         obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
+        c_obs[:,:,:2] = -c_obs[:,:,:2]
+        c_obs[:,:,2] += np.pi
+        c_obs[:,:,2] = (c_obs[:,:,2] + np.pi) % (2 * np.pi) - np.pi
         rewards = self.reward_buf[obs_mask].cpu().numpy().reshape(-1, 2, 1)
         c_rewards = self.reward_buf[~obs_mask].cpu().numpy().reshape(-1, 2, 1)
         dones = np.repeat(np.array([self.reset_buf.cpu().numpy()]).reshape(-1, 1), 2, axis=1)
