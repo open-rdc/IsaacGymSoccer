@@ -41,7 +41,6 @@ class Soccer:
         #foward, backword, left, right, cw, ccw, left kick, right kick, stop
         self.num_player = 4
 
-        self.reset_dist = 3.0  # when to reset
         self.max_episode_length = self.args.episode_length  # maximum episode length
 
         # allocate buffers
@@ -52,7 +51,7 @@ class Soccer:
         self.progress_buf = torch.zeros(self.args.num_envs, device=self.args.sim_device, dtype=torch.long)
 
         self.observation_space = [Box(low=-100, high=100, shape = ([self.num_obs]), dtype=np.float16) for _ in range(int(self.args.num_envs*self.num_player/2))]
-        self.share_observation_space = [Box(low=float("-100"), high=float("100"), shape = ([self.num_obs*int(self.num_player/2)]), dtype=np.float16) for _ in range(int(self.args.num_envs*self.num_player/2))]
+        self.share_observation_space = [Box(low=-100, high=100, shape = ([self.num_obs]), dtype=np.float16) for _ in range(int(self.args.num_envs*self.num_player/2))]
         self.action_space = [Discrete(9) for _ in range(self.args.num_envs*self.num_player)]
 
         # acquire gym interface
@@ -209,16 +208,16 @@ class Soccer:
         expanded_env_ids = repeated_ids * 4 + increment_ids
         self.state_buf[expanded_env_ids] = obs[expanded_env_ids]
 
-        view_ratio = math.tan(math.radians(80))
-        out_of_view = (local_ball[:,0] * view_ratio) < torch.abs(local_ball[:,1])
-        local_ball[out_of_view, :] = -100.0
-        obs[:,3:5] = local_ball
+        #view_ratio = math.tan(math.radians(80))
+        #out_of_view = (local_ball[:,0] * view_ratio) < torch.abs(local_ball[:,1])
+        #local_ball[out_of_view, :] = -100.0
+        #obs[:,3:5] = local_ball
         
-        out_of_view = (local_robot[:,0] * view_ratio) < torch.abs(local_robot[:,1]) 
-        local_robot[out_of_view, :] = -100.0
-        obs[:,5:7] = local_robot[0::3,:]
-        obs[:,7:9] = local_robot[1::3,:]
-        obs[:,9:11] = local_robot[2::3,:]
+        #out_of_view = (local_robot[:,0] * view_ratio) < torch.abs(local_robot[:,1]) 
+        #local_robot[out_of_view, :] = -100.0
+        #obs[:,5:7] = local_robot[0::3,:]
+        #obs[:,7:9] = local_robot[1::3,:]
+        #obs[:,9:11] = local_robot[2::3,:]
         self.obs_buf[expanded_env_ids] = obs[expanded_env_ids]
 
     def get_reward(self):
@@ -226,7 +225,6 @@ class Soccer:
             self.obs_buf,
             self.ball_pos,
             self.ball_vel,
-            self.reset_dist,
             self.reset_buf,
             self.progress_buf,
             self.max_episode_length
@@ -270,17 +268,17 @@ class Soccer:
         self.get_obs()
 
         obs_mask = (torch.arange(self.obs_buf.shape[0]) % 4 <= 1)
-        state0 = torch.empty((self.args.num_envs*self.num_player, self.num_obs*int(self.num_player/2)))
-        state0[0::2, :] = torch.hstack([self.state_buf[0::2, :], self.state_buf[1::2, :]])
-        state0[1::2, :] = torch.hstack([self.state_buf[1::2, :], self.state_buf[0::2, :]])
-        state = state0[obs_mask, :].cpu().numpy().reshape(-1, 2, 22)
-        c_state = state0[~obs_mask, :].cpu().numpy().reshape(-1, 2, 22)
+        #state0 = torch.empty((self.args.num_envs*self.num_player, self.num_obs*int(self.num_player/2)))
+        #state0[0::2, :] = torch.hstack([self.state_buf[0::2, :], self.state_buf[1::2, :]])
+        #state0[1::2, :] = torch.hstack([self.state_buf[1::2, :], self.state_buf[0::2, :]])
+        state = self.state_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
+        c_state = self.state_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_state[:,:,:2] = -c_state[:,:,:2]
         c_state[:,:,2] += np.pi
         c_state[:,:,2] = (c_state[:,:,2] + np.pi) % (2 * np.pi) - np.pi
-        c_state[:,:,11:13] = -c_state[:,:,11:13]
-        c_state[:,:,13] += np.pi
-        c_state[:,:,13] = (c_state[:,:,13] + np.pi) % (2 * np.pi) - np.pi
+        #c_state[:,:,11:13] = -c_state[:,:,11:13]
+        #c_state[:,:,13] += np.pi
+        #c_state[:,:,13] = (c_state[:,:,13] + np.pi) % (2 * np.pi) - np.pi
         obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_obs[:,:,:2] = -c_obs[:,:,:2]
@@ -360,17 +358,17 @@ class Soccer:
         without_0_5m = (ball_distances > 0.5**2).cpu().numpy()
 
         obs_mask = (torch.arange(self.obs_buf.shape[0]) % 4 <= 1)
-        state0 = torch.empty((self.args.num_envs*self.num_player, self.num_obs*int(self.num_player/2)))
-        state0[0::2, :] = torch.hstack([self.state_buf[0::2, :], self.state_buf[1::2, :]])
-        state0[1::2, :] = torch.hstack([self.state_buf[1::2, :], self.state_buf[0::2, :]])
-        state = state0[obs_mask, :].cpu().numpy().reshape(-1, 2, 22)
-        c_state = state0[~obs_mask, :].cpu().numpy().reshape(-1, 2, 22)
+        #state0 = torch.empty((self.args.num_envs*self.num_player, self.num_obs*int(self.num_player/2)))
+        #state0[0::2, :] = torch.hstack([self.state_buf[0::2, :], self.state_buf[1::2, :]])
+        #state0[1::2, :] = torch.hstack([self.state_buf[1::2, :], self.state_buf[0::2, :]])
+        state = self.state_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
+        c_state = self.state_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_state[:,:,:2] = -c_state[:,:,:2]
         c_state[:,:,2] += np.pi
         c_state[:,:,2] = (c_state[:,:,2] + np.pi) % (2 * np.pi) - np.pi
-        c_state[:,:,11:13] = -c_state[:,:,11:13]
-        c_state[:,:,13] += np.pi
-        c_state[:,:,13] = (c_state[:,:,13] + np.pi) % (2 * np.pi) - np.pi
+        #c_state[:,:,11:13] = -c_state[:,:,11:13]
+        #c_state[:,:,13] += np.pi
+        #c_state[:,:,13] = (c_state[:,:,13] + np.pi) % (2 * np.pi) - np.pi
         obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_obs[:,:,:2] = -c_obs[:,:,:2]
@@ -391,8 +389,8 @@ class Soccer:
 
 # define reward function using JIT
 #@torch.jit.script
-def compute_reward(obs_buf, ball_pos, ball_vel, reset_dist, reset_buf, progress_buf, max_episode_length):
-    # type: (Tensor, float, Tensor, Tensor, float) -> Tuple[Tensor, Tensor]
+def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_episode_length):
+    # type: (Tensor, Tensor, Tensor, Tensor, Tensor, float) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]
     num_player = 4
     goal_reward = 1000.0
     velocity_reward = 10.0
