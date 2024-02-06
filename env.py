@@ -37,7 +37,7 @@ class Soccer:
         self.num_obs = 11 # self pos 3 + ball 2 + robot 3 * 2
         self.num_act = 1 #
         self.actions = torch.tensor([[0.5, 0.0 ,0.0 ,0.0 ,0.0], [-0.5, 0.0, 0.0, 0.0, 0.0], [0.0, 0.5, 0.0, 0.0, 0.0], [0.0, -0.5, 0.0, 0.0, 0.0], [0.0, 0.0, 0.5, 0.0, 0.0], [0.0, 0.0, -0.5, 0.0, 0.0], [0.0, 0.0, 0.0, 3.0, 0.0], [0.0, 0.0, 0.0, 0.0, 3.0], [0.0, 0.0, 0.0, 0.0, 0.0]], device=self.args.sim_device)
-        #self.actions = torch.tensor([[0.3,0,0,0,0], [0.3,0,0,0,0], [0,0.2,0,0,0], [0,-0.2,0,0,0], [0,0,0.5,0,0], [0,0,-0.5,0,0], [0,0,0,1,0], [0,0,0,0,1], [0,0,0,0,0]], device=self.args.sim_device)
+        #self.actions = torch.tensor([[0.3,0,0,0,0], [0.3,0,0,0,0], [0,0.2,0,0,0], [0,-0.2,0,0,0], [0,0,0.5,0,0], [0,0,-0.5,0,0], [0,0,0,0,2], [0,0,0,2,0], [0,0,0,0,0]], device=self.args.sim_device)
         #foward, backword, left, right, cw, ccw, left kick, right kick, stop
         self.num_player = 4
 
@@ -181,9 +181,9 @@ class Soccer:
         local_ball = self.local_pos(global_ball, global_pos, rotation_matrix).squeeze()
 
         obs = torch.zeros((self.args.num_envs * self.num_player, self.num_obs), device=self.args.sim_device)
-        obs[:,:2] = global_pos
-        obs[:,2] = yaw
-        obs[:,3:5] = local_ball
+        obs[:,:2] = local_ball
+        obs[:,2:4] = global_pos
+        obs[:,4] = yaw
         global_pos3 = torch.repeat_interleave(global_pos, 3, dim=0)
         robot_pos = torch.zeros((self.args.num_envs*self.num_player*3,2), device=self.args.sim_device)
         robot_pos[0::12,:] = global_pos[1::4,:2]
@@ -211,7 +211,7 @@ class Soccer:
         #view_ratio = math.tan(math.radians(80))
         #out_of_view = (local_ball[:,0] * view_ratio) < torch.abs(local_ball[:,1])
         #local_ball[out_of_view, :] = -100.0
-        #obs[:,3:5] = local_ball
+        #obs[:,:2] = local_ball
         
         #out_of_view = (local_robot[:,0] * view_ratio) < torch.abs(local_robot[:,1]) 
         #local_robot[out_of_view, :] = -100.0
@@ -273,17 +273,17 @@ class Soccer:
         #state0[1::2, :] = torch.hstack([self.state_buf[1::2, :], self.state_buf[0::2, :]])
         state = self.state_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_state = self.state_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
-        c_state[:,:,:2] = -c_state[:,:,:2]
-        c_state[:,:,2] += np.pi
-        c_state[:,:,2] = (c_state[:,:,2] + np.pi) % (2 * np.pi) - np.pi
+        c_state[:,:,2:4] = -c_state[:,:,2:4]
+        c_state[:,:,4] += np.pi
+        c_state[:,:,4] = (c_state[:,:,4] + np.pi) % (2 * np.pi) - np.pi
         #c_state[:,:,11:13] = -c_state[:,:,11:13]
         #c_state[:,:,13] += np.pi
         #c_state[:,:,13] = (c_state[:,:,13] + np.pi) % (2 * np.pi) - np.pi
         obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
-        c_obs[:,:,:2] = -c_obs[:,:,:2]
-        c_obs[:,:,2] += np.pi
-        c_obs[:,:,2] = (c_obs[:,:,2] + np.pi) % (2 * np.pi) - np.pi
+        c_obs[:,:,2:4] = -c_obs[:,:,2:4]
+        c_obs[:,:,4] += np.pi
+        c_obs[:,:,4] = (c_obs[:,:,4] + np.pi) % (2 * np.pi) - np.pi
         available = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs,int(self.num_player/2),1))
         available[:,:,6:] = 0
         return obs, state, available, c_obs, c_state, available
@@ -351,7 +351,7 @@ class Soccer:
         self.get_obs()
         self.get_reward()
 
-        robot_pos = self.obs_buf[:, :2]
+        robot_pos = self.obs_buf[:, 2:4]
         global_ball = torch.repeat_interleave(self.ball_pos[:,:], self.num_player, dim=0)
         local_ball = global_ball - robot_pos
         ball_distances = torch.sum(local_ball**2, dim=1)
@@ -363,17 +363,17 @@ class Soccer:
         #state0[1::2, :] = torch.hstack([self.state_buf[1::2, :], self.state_buf[0::2, :]])
         state = self.state_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_state = self.state_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
-        c_state[:,:,:2] = -c_state[:,:,:2]
-        c_state[:,:,2] += np.pi
-        c_state[:,:,2] = (c_state[:,:,2] + np.pi) % (2 * np.pi) - np.pi
+        c_state[:,:,2:4] = -c_state[:,:,2:4]
+        c_state[:,:,4] += np.pi
+        c_state[:,:,4] = (c_state[:,:,4] + np.pi) % (2 * np.pi) - np.pi
         #c_state[:,:,11:13] = -c_state[:,:,11:13]
         #c_state[:,:,13] += np.pi
         #c_state[:,:,13] = (c_state[:,:,13] + np.pi) % (2 * np.pi) - np.pi
         obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
         c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
-        c_obs[:,:,:2] = -c_obs[:,:,:2]
-        c_obs[:,:,2] += np.pi
-        c_obs[:,:,2] = (c_obs[:,:,2] + np.pi) % (2 * np.pi) - np.pi
+        c_obs[:,:,2:4] = -c_obs[:,:,2:4]
+        c_obs[:,:,4] += np.pi
+        c_obs[:,:,4] = (c_obs[:,:,4] + np.pi) % (2 * np.pi) - np.pi
         rewards = self.reward_buf[obs_mask].cpu().numpy().reshape(-1, 2, 1)
         c_rewards = self.reward_buf[~obs_mask].cpu().numpy().reshape(-1, 2, 1)
         dones = np.repeat(np.array([self.reset_buf.cpu().numpy()]).reshape(-1, 1), 2, axis=1)
@@ -388,7 +388,7 @@ class Soccer:
         return obs, state, rewards, dones, infos, available, c_obs, c_state, c_rewards, dones, c_infos, c_available
 
 # define reward function using JIT
-#@torch.jit.script
+@torch.jit.script
 def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_episode_length):
     # type: (Tensor, Tensor, Tensor, Tensor, Tensor, float) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]
     num_player = 4
@@ -418,7 +418,7 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
     unit_vectors_3d = unit_vectors.unsqueeze(1)
     extended_ball_vel_3d = extended_ball_vel.unsqueeze(2)
     dot_products = torch.bmm(unit_vectors_3d, extended_ball_vel_3d).squeeze()
-    robot_pos = obs_buf[:, :2]
+    robot_pos = obs_buf[:, 2:4]
     global_ball = torch.repeat_interleave(ball_pos[:,:], num_player, dim=0)
     local_ball = global_ball - robot_pos
     ball_distances = torch.sum(local_ball**2, dim=1)
@@ -428,15 +428,15 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
 
     # out of field reward
     rew_out_of_field = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
-    robot_pos = obs_buf[:, :2]
+    #robot_pos = obs_buf[:, 2:4]
     out_of_field = (torch.abs(robot_pos[:, 0]) >= 4.9) | (torch.abs(robot_pos[:, 1]) >= 3.4)
     rew_out_of_field[out_of_field] += out_of_field_reward
 
     # collision reward
     rew_collision = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
-    collision_robot1 = torch.sum(obs_buf[:,5:7]**2, dim=1) < (0.3**2)
-    collision_robot2 = torch.sum(obs_buf[:,7:9]**2, dim=1) < (0.3**2)
-    collision_robot3 = torch.sum(obs_buf[:,9:11]**2, dim=1) < (0.3**2)
+    collision_robot1 = torch.sum(obs_buf[:,5:7]**2, dim=1) < (0.2**2)
+    collision_robot2 = torch.sum(obs_buf[:,7:9]**2, dim=1) < (0.2**2)
+    collision_robot3 = torch.sum(obs_buf[:,9:11]**2, dim=1) < (0.2**2)
     collision = collision_robot1 | collision_robot2 | collision_robot3
     rew_collision[collision] += collision_reward
 
