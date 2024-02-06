@@ -1,0 +1,176 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <link name="field">
+    <visual>
+      <geometry>
+        <box size="11 8 0.001"/>
+      </geometry>
+      <material name="green"/>
+    </visual>
+  </link>
+
+  <joint name="line1_joint" type="fixed">
+    <parent link="field"/>
+    <child link="line1_link"/>
+    <origin xyz="4.5 0 0"/>
+  </joint>
+
+  <link name="line1_link">
+    <visual>
+      <geometry>
+        <box size="0.05 6 0.002"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+  </link>
+
+  <joint name="line3_joint" type="fixed">
+    <parent link="field"/>
+    <child link="line3_link"/>
+    <origin xyz="0 -3 0"/>
+  </joint>
+
+  <link name="line3_link">
+    <visual>
+      <geometry>
+        <box size="9 0.05 0.002"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+  </link>
+
+  <joint name="line4_joint" type="fixed">
+    <parent link="field"/>
+    <child link="line4_link"/>
+  </joint>
+
+  <link name="line4_link">
+    <visual>
+      <geometry>
+        <box size="0.05 6 0.002"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+  </link>
+
+  <joint name="line2_joint" type="fixed">
+    <parent link="field"/>
+    <child link="line2_link"/>
+    <origin xyz="0 3 0"/>
+  </joint>
+
+  <link name="line5_link">
+    <visual>
+      <geometry>
+        <box size="0.05 6 0.002"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+  </link>
+
+  <joint name="line5_joint" type="fixed">
+    <parent link="field"/>
+    <child link="line5_link"/>
+    <origin xyz="-4.5 0 0"/>
+  </joint>
+
+  <link name="line2_link">
+    <visual>
+      <geometry>
+        <box size="9 0.05 0.002"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+  </link>
+
+  <joint name="right_goal_post1_joint" type="fixed">
+    <parent link="field"/>
+    <child link="right_goal_post1_link"/>
+    <origin xyz="4.5 -1.3 0.6"/>
+  </joint>
+
+  <link name="right_goal_post1_link">
+    <visual>
+      <geometry>
+        <box size="0.10 0.10 1.2"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+  </link>
+
+  <joint name="left_goal_post1_joint" type="fixed">
+    <parent link="field"/>
+    <child link="left_goal_post1_link"/>
+    <origin xyz="4.5 1.3 0.6"/>
+  </joint>
+
+  <link name="left_goal_post1_link">
+    <visual>
+      <geometry>
+        <box size="0.10 0.10 1.2"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+  </link>
+
+  <joint name="top_goal_post1_joint" type="fixed">
+    <parent link="field"/>
+    <child link="top_goal_post1_link"/>
+    <origin xyz="4.5 0 1.2"/>
+  </joint>
+
+  <link name="top_goal_post1_link">
+    <visual>
+      <geometry>
+        <box size="0.10 2.7 0.10"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+  </link>
+
+  <joint name="right_goal_post2_joint" type="fixed">
+    <parent link="field"/>
+    <child link="right_goal_post2_link"/>
+    <origin xyz="-4.5 -1.3 0.6"/>
+  </joint>
+
+  <link name="right_goal_post2_link">
+    <visual>
+      <geometry>
+        <box size="0.10 0.10 1.2"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+  </link>
+
+  <joint name="left_goal_post2_joint" type="fixed">
+    <parent link="field"/>
+    <child link="left_goal_post2_link"/>
+    <origin xyz="-4.5 1.3 0.6"/>
+  </joint>
+
+  <link name="left_goal_post2_link">
+    <visual>
+      <geometry>
+        <box size="0.10 0.10 1.2"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+  </link>
+
+  <joint name="top_goal_post2_joint" type="fixed">
+    <parent link="field"/>
+    <child link="top_goal_post2_link"/>
+    <origin xyz="-4.5 0 1.2"/>
+  </joint>
+
+  <link name="top_goal_post2_link">
+    <visual>
+      <geometry>
+        <box size="0.10 2.7 0.10"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+  </link>
+
+</robot>
