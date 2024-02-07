@@ -17,8 +17,44 @@
         <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.08"/>
       </inertial>
     </link>
+    <link name="${name}_x"/>
+    <link name="${name}_y"/>
+
     <xacro:player_foot name="${name}_right_foot"/>
     <xacro:player_foot name="${name}_left_foot"/>
+
+    <joint name="${name}_x_joint" type="prismatic">
+      <axis xyz="1 0 0"/>
+      <parent link="field"/>
+      <child link="${name}_x"/>
+    </joint>
+
+    <joint name="${name}_y_joint" type="prismatic">
+      <axis xyz="0 1 0"/>
+      <parent link="${name}_x"/>
+      <child link="${name}_y"/>
+    </joint>
+
+    <joint name="${name}_joint" type="continuous">
+      <axis xyz="0 0 1"/>
+      <parent link="${name}_y"/>
+      <child link="${name}"/>
+      <origin xyz="0.03 0 0.3"/>
+    </joint>
+
+    <joint name="${name}_right_foot_joint" type="revolute">
+      <axis xyz="0 -1 0"/>
+      <parent link="${name}"/>
+      <child link="${name}_right_foot"/>
+      <origin xyz="0.10 -0.06 0"/>
+    </joint>
+
+    <joint name="${name}_left_foot_joint" type="revolute">
+      <axis xyz="0 -1 0"/>
+      <parent link="${name}"/>
+      <child link="${name}_left_foot"/>
+      <origin xyz="0.10 0.06 0"/>
+    </joint>
   </xacro:macro>
 
   <xacro:macro name="player_foot" params="name">
