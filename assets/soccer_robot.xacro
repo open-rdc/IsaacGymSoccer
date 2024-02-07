@@ -9,6 +9,8 @@
 
   <xacro:player name="player1" color="blue"/>
   <xacro:player name="player2" color="blue"/>
-  <xacro:player name="player3" color="red"/>
+  <xacro:player name="player3" color="blue"/>
   <xacro:player name="player4" color="red"/>
+  <xacro:player name="player5" color="red"/>
+  <xacro:player name="player6" color="red"/>
 </robot>
