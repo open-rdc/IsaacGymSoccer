@@ -374,18 +374,18 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
     out_of_field_reward = -10.0
     collision_reward = -0.1
     
+    obs_mask = (torch.arange(obs_buf.shape[0]) % (n_agents*2) < n_agents)
+    
     # goal reward
     extended_ball_pos = torch.repeat_interleave(ball_pos[:,:], n_agents*2, dim=0)
-    extended_ball_pos[2::n_agents*2, 0] *= -1
-    extended_ball_pos[3::n_agents*2, 0] *= -1
+    extended_ball_pos[~obs_mask, 0] *= -1
     rew_goal = torch.zeros(extended_ball_pos.shape[0], device=obs_buf.device)
     rew_goal = torch.where((extended_ball_pos[:,0] > 4.5) & (torch.abs(extended_ball_pos[:,1]) < 1.3), torch.ones_like(rew_goal)*goal_reward, rew_goal)
     rew_goal = torch.where((extended_ball_pos[:,0] < -4.5) & (torch.abs(extended_ball_pos[:,1]) < 1.3), torch.ones_like(rew_goal)*(-goal_reward), rew_goal)
     
     # ball velocity reward
     extended_ball_vel = torch.repeat_interleave(ball_vel[:,:], n_agents*2, dim=0)
-    extended_ball_vel[2::n_agents*2, 0] *= -1
-    extended_ball_vel[3::n_agents*2, 0] *= -1
+    extended_ball_vel[~obs_mask, 0] *= -1
     backward_ball = extended_ball_vel[:, 0] < 0
     extended_ball_vel[backward_ball, :] = 0.0
     goal_pos = torch.tensor([4.5, 0.0], device=obs_buf.device).repeat(extended_ball_pos.shape[0], 1)
@@ -411,11 +411,11 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
 
     # collision reward
     rew_collision = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
-    
-    collision_robot1 = torch.sum(obs_buf[:,5:7]**2, dim=1) < (0.2**2)
-    collision_robot2 = torch.sum(obs_buf[:,7:9]**2, dim=1) < (0.2**2)
-    collision_robot3 = torch.sum(obs_buf[:,9:11]**2, dim=1) < (0.2**2)
-    collision = collision_robot1 | collision_robot2 | collision_robot3
+    num_others = n_agents * 2 - 1
+
+    robot_positions = obs_buf[:, 5:5+num_others*2].view(-1, num_others, 2)
+    collisions = torch.sum(robot_positions**2, dim=2) < (0.2**2)
+    collision = torch.any(collisions, dim=1)
     rew_collision[collision] += collision_reward
 
     reward = rew_goal + rew_ball_vel + rew_out_of_field + rew_collision

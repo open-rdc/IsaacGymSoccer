@@ -24,7 +24,7 @@ def make_train_env(all_args):
     parser.add_argument('--episode_length', default=all_args.episode_length, type=int)
     parser.add_argument('--n_agent', default=all_args.n_agent, type=int)
     args = parser.parse_args()
-    args.headless = False
+    args.headless = True
     envs = Soccer(args)
     return envs
 
