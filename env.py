@@ -190,11 +190,10 @@ class Soccer:
         robot_pos[:,:] = global_pos[other_robots_index,:2]
         rotation_matrix3 = torch.repeat_interleave(rotation_matrix, num_others, dim=0)
         local_robot = self.local_pos(robot_pos, global_pos3, rotation_matrix3).squeeze()
-        end_index = num_others * 2 + 5
-        obs[:,5:end_index] = local_robot.view(len(obs), num_others*2)
+        obs[:,5:5+num_others*2] = local_robot.view(len(obs), num_others*2)
         repeated_ids = torch.repeat_interleave(env_ids, self.n_agents*2)
         increment_ids = torch.arange(self.n_agents*2, device=self.args.sim_device).repeat(env_ids.numel())
-        expanded_env_ids = repeated_ids * 4 + increment_ids
+        expanded_env_ids = repeated_ids * self.n_agents*2 + increment_ids
         self.state_buf[expanded_env_ids] = obs[expanded_env_ids]
 
         #view_ratio = math.tan(math.radians(80))
