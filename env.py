@@ -176,7 +176,7 @@ class Soccer:
         yaw = pos[:,2]
         cos_angles = torch.cos(yaw)
         sin_angles = torch.sin(yaw)
-        rotation_matrix = torch.stack([cos_angles, -sin_angles, sin_angles, cos_angles], dim=1).reshape(-1, 2, 2)
+        rotation_matrix = torch.stack([cos_angles, sin_angles, -sin_angles, cos_angles], dim=1).reshape(-1, 2, 2)
         local_ball = self.local_pos(global_ball, global_pos, rotation_matrix).squeeze()
 
         obs = torch.zeros((self.args.num_envs*self.n_agents*2, self.num_obs), device=self.args.sim_device)
@@ -186,8 +186,13 @@ class Soccer:
         num_others = self.n_agents * 2 - 1
         global_pos3 = torch.repeat_interleave(global_pos, num_others, dim=0)
         robot_pos = torch.zeros((self.args.num_envs*self.n_agents*2*num_others, 2), device=self.args.sim_device)
-        other_robots_index = [j for i in range(self.n_agents*2) for j in range(self.n_agents*2) if i != j]*self.args.num_envs
-        robot_pos[:,:] = global_pos[other_robots_index,:2]
+        other_robots_index = [j for i in range(self.n_agents) for j in range(self.n_agents*2) if i != j]
+        other_robots_index += [j % (self.n_agents*2) for i in range(self.n_agents, self.n_agents*2) for j in range(self.n_agents,self.n_agents*3) if i != j]
+        other_robots_index *= self.args.num_envs
+        other_robots_ids = torch.tensor(other_robots_index, device=self.args.sim_device)
+        other_robots_repeated_ids = torch.repeat_interleave(env_ids, self.n_agents*2*num_others)*self.n_agents*2
+        other_robots_ids += other_robots_repeated_ids
+        robot_pos[:,:] = global_pos[other_robots_ids,:2]
         rotation_matrix3 = torch.repeat_interleave(rotation_matrix, num_others, dim=0)
         local_robot = self.local_pos(robot_pos, global_pos3, rotation_matrix3).squeeze()
         obs[:,5:5+num_others*2] = local_robot.view(len(obs), num_others*2)
