@@ -35,11 +35,18 @@ class SoccerRunner(Runner):
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic = self.collect(step)
                 c_values, c_actions, c_action_log_probs, c_rnn_states, c_rnn_states_critic = self.c_collect(step)
+                #actions[1][0][0] = 0
+                #actions[1][1][0] = 0
                 marged_actions = [np.hstack((actions.reshape(-1,2), c_actions.reshape(-1,2))).reshape(-1,2,1)]
 
                 # Obser reward and next obs
 
                 obs, share_obs, rewards, dones, infos, available_actions, c_obs, c_share_obs, c_rewards, c_dones, c_infos, c_available_actions = self.envs.step(marged_actions)
+                #print("obs[1]")
+                #print(obs[1])
+                #print("rewards[1]")
+                #print(rewards[1])
+                #input()
                 self.envs.reset()
                 dones_env = np.all(dones, axis=1)
                 reward_env = np.mean(rewards, axis=1).flatten()
@@ -154,11 +161,11 @@ class SoccerRunner(Runner):
         self.c_trainer.prep_rollout()
         value, action, action_log_prob, rnn_state, rnn_state_critic \
             = self.c_trainer.policy.get_actions(np.concatenate(self.c_buffer.share_obs[step]),
-                                              np.concatenate(self.c_buffer.obs[step]),
-                                              np.concatenate(self.c_buffer.rnn_states[step]),
-                                              np.concatenate(self.c_buffer.rnn_states_critic[step]),
-                                              np.concatenate(self.c_buffer.masks[step]))
- 
+                                                np.concatenate(self.c_buffer.obs[step]),
+                                                np.concatenate(self.c_buffer.rnn_states[step]),
+                                                np.concatenate(self.c_buffer.rnn_states_critic[step]),
+                                                np.concatenate(self.c_buffer.masks[step]),
+                                                np.concatenate(self.c_buffer.available_actions[step]))
         # [self.envs, agents, dim]
         values = np.array(np.split(_t2n(value), self.n_rollout_threads))
         actions = np.array(np.split(_t2n(action), self.n_rollout_threads))
