@@ -33,26 +33,26 @@ class Soccer:
         self.dt = sim_params.dt
         self.walking_period = 0.34
 
+        self.n_agents = self.args.n_agent
         # task-specific parameters
-        self.num_obs = 11 # self pos 3 + ball 2 + robot 3 * 2
+        self.num_obs = 5 + (self.n_agents*2-1)*2 # self pos 3 + ball 2 + num_others * 2
         self.num_act = 1 #
-        self.actions = torch.tensor([[0.5, 0.0 ,0.0 ,0.0 ,0.0], [-0.5, 0.0, 0.0, 0.0, 0.0], [0.0, 0.5, 0.0, 0.0, 0.0], [0.0, -0.5, 0.0, 0.0, 0.0], [0.0, 0.0, 0.5, 0.0, 0.0], [0.0, 0.0, -0.5, 0.0, 0.0], [0.0, 0.0, 0.0, 3.0, 0.0], [0.0, 0.0, 0.0, 0.0, 3.0], [0.0, 0.0, 0.0, 0.0, 0.0]], device=self.args.sim_device)
+        self.actions = torch.tensor([[0.5, 0.0 ,0.0 ,0.0 ,0.0], [-0.5, 0.0, 0.0, 0.0, 0.0], [0.0, 0.5, 0.0, 0.0, 0.0], [0.0, -0.5, 0.0, 0.0, 0.0], [0.0, 0.0, -0.5, 0.0, 0.0], [0.0, 0.0, 0.5, 0.0, 0.0], [0.0, 0.0, 0.0, 3.0, 0.0], [0.0, 0.0, 0.0, 0.0, 3.0], [0.0, 0.0, 0.0, 0.0, 0.0]], device=self.args.sim_device)
         #self.actions = torch.tensor([[0.3,0,0,0,0], [0.3,0,0,0,0], [0,0.2,0,0,0], [0,-0.2,0,0,0], [0,0,0.5,0,0], [0,0,-0.5,0,0], [0,0,0,0,2], [0,0,0,2,0], [0,0,0,0,0]], device=self.args.sim_device)
         #foward, backword, left, right, cw, ccw, left kick, right kick, stop
-        self.num_player = 4
 
         self.max_episode_length = self.args.episode_length  # maximum episode length
 
         # allocate buffers
-        self.obs_buf = torch.zeros((self.args.num_envs*self.num_player, self.num_obs), device=self.args.sim_device)
-        self.state_buf = torch.zeros((self.args.num_envs*self.num_player, self.num_obs), device=self.args.sim_device)
-        self.reward_buf = torch.zeros(self.args.num_envs*self.num_player, device=self.args.sim_device)
+        self.obs_buf = torch.zeros((self.args.num_envs*self.n_agents*2, self.num_obs), device=self.args.sim_device)
+        self.state_buf = torch.zeros((self.args.num_envs*self.n_agents*2, self.num_obs), device=self.args.sim_device)
+        self.reward_buf = torch.zeros(self.args.num_envs*self.n_agents*2, device=self.args.sim_device)
         self.reset_buf = torch.ones(self.args.num_envs, device=self.args.sim_device, dtype=torch.long)
         self.progress_buf = torch.zeros(self.args.num_envs, device=self.args.sim_device, dtype=torch.long)
 
-        self.observation_space = [Box(low=-100, high=100, shape = ([self.num_obs]), dtype=np.float16) for _ in range(int(self.args.num_envs*self.num_player/2))]
-        self.share_observation_space = [Box(low=-100, high=100, shape = ([self.num_obs]), dtype=np.float16) for _ in range(int(self.args.num_envs*self.num_player/2))]
-        self.action_space = [Discrete(9) for _ in range(self.args.num_envs*self.num_player)]
+        self.observation_space = [Box(low=-100, high=100, shape = ([self.num_obs]), dtype=np.float16) for _ in range(self.args.num_envs*self.n_agents)]
+        self.share_observation_space = [Box(low=-100, high=100, shape = ([self.num_obs]), dtype=np.float16) for _ in range(self.args.num_envs*self.n_agents)]
+        self.action_space = [Discrete(9) for _ in range(self.args.num_envs*self.n_agents)]
 
         # acquire gym interface
         self.gym = gymapi.acquire_gym()
@@ -78,13 +78,12 @@ class Soccer:
 
         # step simulation to initialise tensor buffers
         self.gym.prepare_sim(self.sim)
-        torch_zeros = lambda : torch.zeros(self.args.num_envs * int(self.num_player/2), dtype=torch.float, device=self.args.sim_device, requires_grad=False)
+        torch_zeros = lambda : torch.zeros(self.args.num_envs*self.n_agents, dtype=torch.float, device=self.args.sim_device, requires_grad=False)
         self.episode_sums = {"goal": torch_zeros(), "ball_velocity": torch_zeros(), "out_of_field": torch_zeros(), "collision": torch_zeros()}
         self.reset()
 
         self.train_team_name = "blue"
         self.copy_team_name = "red"
-        self.n_agents = 2
         self.extras = {}
 
     def create_envs(self):
@@ -170,42 +169,36 @@ class Soccer:
         self.gym.refresh_dof_state_tensor(self.sim)
         self.gym.refresh_actor_root_state_tensor(self.sim)
 
-        pos = self.dof_pos.view(self.args.num_envs*self.num_player, 5)
+        pos = self.dof_pos.view(self.args.num_envs*self.n_agents*2, 5)
         global_pos = pos[:,:2]
-        global_ball = torch.repeat_interleave(self.ball_pos[:,:2], self.num_player, dim=0)
+        global_ball = torch.repeat_interleave(self.ball_pos[:,:2], self.n_agents*2, dim=0)
 
         yaw = pos[:,2]
         cos_angles = torch.cos(yaw)
         sin_angles = torch.sin(yaw)
-        rotation_matrix = torch.stack([cos_angles, -sin_angles, sin_angles, cos_angles], dim=1).reshape(-1, 2, 2)
+        rotation_matrix = torch.stack([cos_angles, sin_angles, -sin_angles, cos_angles], dim=1).reshape(-1, 2, 2)
         local_ball = self.local_pos(global_ball, global_pos, rotation_matrix).squeeze()
 
-        obs = torch.zeros((self.args.num_envs * self.num_player, self.num_obs), device=self.args.sim_device)
+        obs = torch.zeros((self.args.num_envs*self.n_agents*2, self.num_obs), device=self.args.sim_device)
         obs[:,:2] = local_ball
         obs[:,2:4] = global_pos
         obs[:,4] = yaw
-        global_pos3 = torch.repeat_interleave(global_pos, 3, dim=0)
-        robot_pos = torch.zeros((self.args.num_envs*self.num_player*3,2), device=self.args.sim_device)
-        robot_pos[0::12,:] = global_pos[1::4,:2]
-        robot_pos[1::12,:] = global_pos[2::4,:2]
-        robot_pos[2::12,:] = global_pos[3::4,:2]
-        robot_pos[3::12,:] = global_pos[0::4,:2]
-        robot_pos[4::12,:] = global_pos[2::4,:2]
-        robot_pos[5::12,:] = global_pos[3::4,:2]
-        robot_pos[6::12,:] = global_pos[3::4,:2]
-        robot_pos[7::12,:] = global_pos[0::4,:2]
-        robot_pos[8::12,:] = global_pos[1::4,:2]
-        robot_pos[9::12,:] = global_pos[2::4,:2]
-        robot_pos[10::12,:] = global_pos[0::4,:2]
-        robot_pos[11::12,:] = global_pos[1::4,:2]
-        rotation_matrix3 = torch.repeat_interleave(rotation_matrix, 3, dim=0)
+        num_others = self.n_agents * 2 - 1
+        global_pos3 = torch.repeat_interleave(global_pos, num_others, dim=0)
+        robot_pos = torch.zeros((self.args.num_envs*self.n_agents*2*num_others, 2), device=self.args.sim_device)
+        other_robots_index = [j for i in range(self.n_agents) for j in range(self.n_agents*2) if i != j]
+        other_robots_index += [j % (self.n_agents*2) for i in range(self.n_agents, self.n_agents*2) for j in range(self.n_agents,self.n_agents*3) if i != j]
+        other_robots_index *= self.args.num_envs
+        other_robots_ids = torch.tensor(other_robots_index, device=self.args.sim_device)
+        other_robots_repeated_ids = torch.repeat_interleave(env_ids, self.n_agents*2*num_others)*self.n_agents*2
+        other_robots_ids += other_robots_repeated_ids
+        robot_pos[:,:] = global_pos[other_robots_ids,:2]
+        rotation_matrix3 = torch.repeat_interleave(rotation_matrix, num_others, dim=0)
         local_robot = self.local_pos(robot_pos, global_pos3, rotation_matrix3).squeeze()
-        obs[:,5:7] = local_robot[0::3,:]
-        obs[:,7:9] = local_robot[1::3,:]
-        obs[:,9:11] = local_robot[2::3,:]
-        repeated_ids = torch.repeat_interleave(env_ids, self.num_player)
-        increment_ids = torch.arange(self.num_player, device=self.args.sim_device).repeat(env_ids.numel())
-        expanded_env_ids = repeated_ids * 4 + increment_ids
+        obs[:,5:5+num_others*2] = local_robot.view(len(obs), num_others*2)
+        repeated_ids = torch.repeat_interleave(env_ids, self.n_agents*2)
+        increment_ids = torch.arange(self.n_agents*2, device=self.args.sim_device).repeat(env_ids.numel())
+        expanded_env_ids = repeated_ids * self.n_agents*2 + increment_ids
         self.state_buf[expanded_env_ids] = obs[expanded_env_ids]
 
         #view_ratio = math.tan(math.radians(80))
@@ -227,12 +220,13 @@ class Soccer:
             self.ball_vel,
             self.reset_buf,
             self.progress_buf,
-            self.max_episode_length
+            self.max_episode_length,
+            self.n_agents
         )
-        self.episode_sums["goal"] += rew_goal.reshape(-1, 4)[:, :2].flatten()
-        self.episode_sums["ball_velocity"] += rew_ball_vel.reshape(-1, 4)[:, :2].flatten()
-        self.episode_sums["out_of_field"] += rew_out_of_field.reshape(-1, 4)[:, :2].flatten()
-        self.episode_sums["collision"] += rew_collision.reshape(-1, 4)[:, :2].flatten()
+        self.episode_sums["goal"] += rew_goal.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
+        self.episode_sums["ball_velocity"] += rew_ball_vel.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
+        self.episode_sums["out_of_field"] += rew_out_of_field.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
+        self.episode_sums["collision"] += rew_collision.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
 
     def reset(self):
         env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
@@ -241,8 +235,8 @@ class Soccer:
             return
 
         # randomise initial positions and velocities
-        min_values = torch.tensor([-0.5, -0.2, 0, 0, 0, -4, -2.5, 0, 0, 0, 1.0, -0.2, 3.14, 0, 0, 1, -2.5, 3.14, 0, 0], device=self.args.sim_device)
-        max_values = torch.tensor([-0.3, 0.2, 0, 0, 0, -1, 2.5, 0, 0, 0, 1.2, 0.2, 3.14, 0, 0, 4, 2.5, 3.14, 0, 0], device=self.args.sim_device)
+        min_values = torch.tensor([-0.5, -0.2, 0, 0, 0]+[-4, -2.5, 0, 0, 0]*(self.n_agents-1)+[1.0, -0.2, 3.14, 0, 0]+[1, -2.5, 3.14, 0, 0]*(self.n_agents-1), device=self.args.sim_device)
+        max_values = torch.tensor([-0.3, 0.2, 0, 0, 0]+[-1, 2.5, 0, 0, 0]*(self.n_agents-1)+[1.2, 0.2, 3.14, 0, 0]+[4, 2.5, 3.14, 0, 0]*(self.n_agents-1), device=self.args.sim_device)
         random_tensor = torch.rand((len(env_ids), self.num_dof), device=self.args.sim_device)
         positions = min_values + (max_values- min_values) * random_tensor
 
@@ -267,24 +261,18 @@ class Soccer:
         # refresh new observation after reset
         self.get_obs()
 
-        obs_mask = (torch.arange(self.obs_buf.shape[0]) % 4 <= 1)
-        #state0 = torch.empty((self.args.num_envs*self.num_player, self.num_obs*int(self.num_player/2)))
-        #state0[0::2, :] = torch.hstack([self.state_buf[0::2, :], self.state_buf[1::2, :]])
-        #state0[1::2, :] = torch.hstack([self.state_buf[1::2, :], self.state_buf[0::2, :]])
-        state = self.state_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
-        c_state = self.state_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
+        obs_mask = (torch.arange(self.obs_buf.shape[0]) % (self.n_agents*2) < self.n_agents)
+        state = self.state_buf[obs_mask, :].cpu().numpy().reshape(-1, self.n_agents, self.num_obs)
+        c_state = self.state_buf[~obs_mask, :].cpu().numpy().reshape(-1, self.n_agents, self.num_obs)
         c_state[:,:,2:4] = -c_state[:,:,2:4]
         c_state[:,:,4] += np.pi
         c_state[:,:,4] = (c_state[:,:,4] + np.pi) % (2 * np.pi) - np.pi
-        #c_state[:,:,11:13] = -c_state[:,:,11:13]
-        #c_state[:,:,13] += np.pi
-        #c_state[:,:,13] = (c_state[:,:,13] + np.pi) % (2 * np.pi) - np.pi
-        obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
-        c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
+        obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, self.n_agents, self.num_obs)
+        c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, self.n_agents, self.num_obs)
         c_obs[:,:,2:4] = -c_obs[:,:,2:4]
         c_obs[:,:,4] += np.pi
         c_obs[:,:,4] = (c_obs[:,:,4] + np.pi) % (2 * np.pi) - np.pi
-        available = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs,int(self.num_player/2),1))
+        available = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs,self.n_agents,1))
         available[:,:,6:] = 0
         return obs, state, available, c_obs, c_state, available
 
@@ -315,7 +303,7 @@ class Soccer:
 
     def step(self, actions):
         # apply action
-        each_dof_pos = self.dof_pos.view(self.args.num_envs*self.num_player, 5)
+        each_dof_pos = self.dof_pos.view(self.args.num_envs*self.n_agents*2, 5)
         angles = each_dof_pos[:, 2]
         cos_angles = torch.cos(angles)
         sin_angles = torch.sin(angles)
@@ -330,8 +318,8 @@ class Soccer:
         actions0[:,:2] = rotated_translation
         actions_tensor[:] = actions0.flatten()
         positions = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
-        positions0 = self.dof_pos[:].reshape(self.args.num_envs*self.num_player, 5)
-        positions0[non_zero_rows,3] = positions0[non_zero_rows,4] = 0
+        positions0 = self.dof_pos[:].reshape(self.args.num_envs*self.n_agents*2, 5)
+        positions0[non_zero_rows,3:5] = 0
         positions[:] = positions0.reshape(-1)
 
         # simulate and render
@@ -352,63 +340,56 @@ class Soccer:
         self.get_reward()
 
         robot_pos = self.obs_buf[:, 2:4]
-        global_ball = torch.repeat_interleave(self.ball_pos[:,:], self.num_player, dim=0)
+        global_ball = torch.repeat_interleave(self.ball_pos[:,:], self.n_agents*2, dim=0)
         local_ball = global_ball - robot_pos
         ball_distances = torch.sum(local_ball**2, dim=1)
         without_0_5m = (ball_distances > 0.5**2).cpu().numpy()
 
-        obs_mask = (torch.arange(self.obs_buf.shape[0]) % 4 <= 1)
-        #state0 = torch.empty((self.args.num_envs*self.num_player, self.num_obs*int(self.num_player/2)))
-        #state0[0::2, :] = torch.hstack([self.state_buf[0::2, :], self.state_buf[1::2, :]])
-        #state0[1::2, :] = torch.hstack([self.state_buf[1::2, :], self.state_buf[0::2, :]])
-        state = self.state_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
-        c_state = self.state_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
+        obs_mask = (torch.arange(self.obs_buf.shape[0]) % (self.n_agents*2) < self.n_agents)
+        state = self.state_buf[obs_mask, :].cpu().numpy().reshape(-1, self.n_agents, self.num_obs)
+        c_state = self.state_buf[~obs_mask, :].cpu().numpy().reshape(-1, self.n_agents, self.num_obs)
         c_state[:,:,2:4] = -c_state[:,:,2:4]
         c_state[:,:,4] += np.pi
         c_state[:,:,4] = (c_state[:,:,4] + np.pi) % (2 * np.pi) - np.pi
-        #c_state[:,:,11:13] = -c_state[:,:,11:13]
-        #c_state[:,:,13] += np.pi
-        #c_state[:,:,13] = (c_state[:,:,13] + np.pi) % (2 * np.pi) - np.pi
-        obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
-        c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, 2, 11)
+        obs = self.obs_buf[obs_mask, :].cpu().numpy().reshape(-1, self.n_agents, self.num_obs)
+        c_obs = self.obs_buf[~obs_mask, :].cpu().numpy().reshape(-1, self.n_agents, self.num_obs)
         c_obs[:,:,2:4] = -c_obs[:,:,2:4]
         c_obs[:,:,4] += np.pi
         c_obs[:,:,4] = (c_obs[:,:,4] + np.pi) % (2 * np.pi) - np.pi
-        rewards = self.reward_buf[obs_mask].cpu().numpy().reshape(-1, 2, 1)
-        c_rewards = self.reward_buf[~obs_mask].cpu().numpy().reshape(-1, 2, 1)
-        dones = np.repeat(np.array([self.reset_buf.cpu().numpy()]).reshape(-1, 1), 2, axis=1)
-        infos = np.tile(np.array([{"score_reward": 0} for _ in range(int(self.num_player/2))]),(self.args.num_envs,1))
-        c_infos = np.tile(np.array([{"score_reward": 0} for _ in range(int(self.num_player/2))]),(self.args.num_envs,1))
-        avail = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs*self.num_player,1))
+        rewards = self.reward_buf[obs_mask].cpu().numpy().reshape(-1, self.n_agents, 1)
+        c_rewards = self.reward_buf[~obs_mask].cpu().numpy().reshape(-1, self.n_agents, 1)
+        dones = np.repeat(np.array([self.reset_buf.cpu().numpy()]).reshape(-1, 1), self.n_agents, axis=1)
+        infos = np.tile(np.array([{"score_reward": 0} for _ in range(self.n_agents)]),(self.args.num_envs,1))
+        c_infos = np.tile(np.array([{"score_reward": 0} for _ in range(self.n_agents)]),(self.args.num_envs,1))
+        avail = np.tile(np.array([1] * self.actions.shape[0]),(self.args.num_envs*self.n_agents*2,1))
         avail[without_0_5m, 6:] = 0
         avail[~without_0_5m, 8] = 0
-        available = avail[obs_mask].reshape(-1, 2, 9)
-        c_available = avail[~obs_mask].reshape(-1, 2, 9)
+        available = avail[obs_mask].reshape(-1, self.n_agents, 9)
+        c_available = avail[~obs_mask].reshape(-1, self.n_agents, 9)
 
         return obs, state, rewards, dones, infos, available, c_obs, c_state, c_rewards, dones, c_infos, c_available
 
 # define reward function using JIT
 @torch.jit.script
-def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_episode_length):
-    # type: (Tensor, Tensor, Tensor, Tensor, Tensor, float) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]
-    num_player = 4
+def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_episode_length, n_agents):
+    # type: (Tensor, Tensor, Tensor, Tensor, Tensor, float, int) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]
     goal_reward = 1000.0
     velocity_reward = 10.0
     out_of_field_reward = -10.0
     collision_reward = -0.1
     
+    obs_mask = (torch.arange(obs_buf.shape[0]) % (n_agents*2) < n_agents)
+    
     # goal reward
-    extended_ball_pos = torch.repeat_interleave(ball_pos[:,:], num_player, dim=0)
-    extended_ball_pos[2::num_player, 0] *= -1
-    extended_ball_pos[3::num_player, 0] *= -1
+    extended_ball_pos = torch.repeat_interleave(ball_pos[:,:], n_agents*2, dim=0)
+    extended_ball_pos[~obs_mask, 0] *= -1
     rew_goal = torch.zeros(extended_ball_pos.shape[0], device=obs_buf.device)
     rew_goal = torch.where((extended_ball_pos[:,0] > 4.5) & (torch.abs(extended_ball_pos[:,1]) < 1.3), torch.ones_like(rew_goal)*goal_reward, rew_goal)
     rew_goal = torch.where((extended_ball_pos[:,0] < -4.5) & (torch.abs(extended_ball_pos[:,1]) < 1.3), torch.ones_like(rew_goal)*(-goal_reward), rew_goal)
     
     # ball velocity reward
-    extended_ball_vel = torch.repeat_interleave(ball_vel[:,:], num_player, dim=0)
-    extended_ball_vel[2::num_player, 0] *= -1
-    extended_ball_vel[3::num_player, 0] *= -1
+    extended_ball_vel = torch.repeat_interleave(ball_vel[:,:], n_agents*2, dim=0)
+    extended_ball_vel[~obs_mask, 0] *= -1
     backward_ball = extended_ball_vel[:, 0] < 0
     extended_ball_vel[backward_ball, :] = 0.0
     goal_pos = torch.tensor([4.5, 0.0], device=obs_buf.device).repeat(extended_ball_pos.shape[0], 1)
@@ -419,7 +400,7 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
     extended_ball_vel_3d = extended_ball_vel.unsqueeze(2)
     dot_products = torch.bmm(unit_vectors_3d, extended_ball_vel_3d).squeeze()
     robot_pos = obs_buf[:, 2:4]
-    global_ball = torch.repeat_interleave(ball_pos[:,:], num_player, dim=0)
+    global_ball = torch.repeat_interleave(ball_pos[:,:], n_agents*2, dim=0)
     local_ball = global_ball - robot_pos
     ball_distances = torch.sum(local_ball**2, dim=1)
     without_1_0m = ball_distances > 1.0**2
@@ -434,10 +415,11 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
 
     # collision reward
     rew_collision = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
-    collision_robot1 = torch.sum(obs_buf[:,5:7]**2, dim=1) < (0.2**2)
-    collision_robot2 = torch.sum(obs_buf[:,7:9]**2, dim=1) < (0.2**2)
-    collision_robot3 = torch.sum(obs_buf[:,9:11]**2, dim=1) < (0.2**2)
-    collision = collision_robot1 | collision_robot2 | collision_robot3
+    num_others = n_agents * 2 - 1
+
+    robot_positions = obs_buf[:, 5:5+num_others*2].view(-1, num_others, 2)
+    collisions = torch.sum(robot_positions**2, dim=2) < (0.2**2)
+    collision = torch.any(collisions, dim=1)
     rew_collision[collision] += collision_reward
 
     reward = rew_goal + rew_ball_vel + rew_out_of_field + rew_collision

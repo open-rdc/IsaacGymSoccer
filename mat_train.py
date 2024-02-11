@@ -22,6 +22,7 @@ def make_train_env(all_args):
     parser.add_argument('--num_envs', default=all_args.n_rollout_threads, type=int)
     parser.add_argument('--headless', action='store_true')
     parser.add_argument('--episode_length', default=all_args.episode_length, type=int)
+    parser.add_argument('--n_agent', default=all_args.n_agent, type=int)
     args = parser.parse_args()
     args.headless = True
     envs = Soccer(args)
@@ -171,6 +172,6 @@ def main(args):
 
 
 if __name__ == "__main__":
-    arg_list = ['--seed', '1', '--env_name', 'soccer', '--algorithm_name', 'mat_dec', '--experiment_name', 'single', '--scenario_name', 'self-play', '--num_agents', '2', '--lr', '5e-4', '--entropy_coef', '0.01', '--max_grad_norm', '0.5', '--n_training_threads', '16', '--n_rollout_threads', '2048', '--num_mini_batch', '1', '--episode_length', '100', '--num_env_steps', '1000000000', '--ppo_epoch', '10', '--clip_param', '0.05', '--use_value_active_masks', '--use_policy_active_masks']
-    #arg_list = ['--seed', '1', '--env_name', 'soccer', '--algorithm_name', 'mat_dec', '--experiment_name', 'single', '--scenario_name', 'self-play', '--num_agents', '2', '--lr', '5e-4', '--entropy_coef', '0.01', '--max_grad_norm', '0.5', '--n_training_threads', '16', '--n_rollout_threads', '4', '--num_mini_batch', '1', '--episode_length', '10000', '--num_env_steps', '1000000000', '--ppo_epoch', '10', '--clip_param', '0.05', '--use_value_active_masks', '--use_policy_active_masks', '--model_dir', '/home/haya/IsaacGymSoccer/results/run116/models/transformer_2452.pt']
+    arg_list = ['--seed', '1', '--env_name', 'soccer', '--algorithm_name', 'mat_dec', '--experiment_name', 'single', '--scenario_name', 'self-play', '--n_agent', '3', '--lr', '5e-4', '--entropy_coef', '0.01', '--max_grad_norm', '0.5', '--n_training_threads', '16', '--n_rollout_threads', '1024', '--num_mini_batch', '1', '--episode_length', '100', '--num_env_steps', '1000000000', '--ppo_epoch', '10', '--clip_param', '0.05', '--use_value_active_masks', '--use_policy_active_masks']
+    #arg_list = ['--seed', '1', '--env_name', 'soccer', '--algorithm_name', 'mat_dec', '--experiment_name', 'single', '--scenario_name', 'self-play', '--n_agent', '3', '--lr', '5e-4', '--entropy_coef', '0.0', '--max_grad_norm', '0.5', '--n_training_threads', '16', '--n_rollout_threads', '4', '--num_mini_batch', '1', '--episode_length', '10000', '--num_env_steps', '1000000000', '--ppo_epoch', '10', '--clip_param', '0.05', '--use_value_active_masks', '--use_policy_active_masks', '--model_dir', '/home/haya/IsaacGymSoccer/results/run190/models/transformer_2064.pt']
     main(arg_list)
