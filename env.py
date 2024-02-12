@@ -37,8 +37,7 @@ class Soccer:
         # task-specific parameters
         self.num_obs = 5 + (self.n_agents*2-1)*2 # self pos 3 + ball 2 + num_others * 2
         self.num_act = 1 #
-        self.actions = torch.tensor([[0.5, 0.0 ,0.0 ,0.0 ,0.0], [-0.5, 0.0, 0.0, 0.0, 0.0], [0.0, 0.5, 0.0, 0.0, 0.0], [0.0, -0.5, 0.0, 0.0, 0.0], [0.0, 0.0, -0.5, 0.0, 0.0], [0.0, 0.0, 0.5, 0.0, 0.0], [0.0, 0.0, 0.0, 3.0, 0.0], [0.0, 0.0, 0.0, 0.0, 3.0], [0.0, 0.0, 0.0, 0.0, 0.0]], device=self.args.sim_device)
-        #self.actions = torch.tensor([[0.3,0,0,0,0], [0.3,0,0,0,0], [0,0.2,0,0,0], [0,-0.2,0,0,0], [0,0,0.5,0,0], [0,0,-0.5,0,0], [0,0,0,0,2], [0,0,0,2,0], [0,0,0,0,0]], device=self.args.sim_device)
+        self.actions = torch.tensor([[0.3, 0.0 ,0.0 ,0.0 ,0.0], [-0.3, 0.0, 0.0, 0.0, 0.0], [0.0, 0.2, 0.0, 0.0, 0.0], [0.0, -0.2, 0.0, 0.0, 0.0], [0.0, 0.0, -0.5, 0.0, 0.0], [0.0, 0.0, 0.5, 0.0, 0.0], [0.0, 0.0, 0.0, 6.0, 0.0], [0.0, 0.0, 0.0, 0.0, 6.0], [0.0, 0.0, 0.0, 0.0, 0.0]], device=self.args.sim_device)
         #foward, backword, left, right, cw, ccw, left kick, right kick, stop
 
         self.max_episode_length = self.args.episode_length  # maximum episode length
@@ -329,6 +328,8 @@ class Soccer:
             positions += actions_tensor * self.dt
             positions[0::5] = torch.clamp(positions[0::5], min=-5.0, max=5.0)
             positions[1::5] = torch.clamp(positions[1::5], min=-3.5, max=3.5)
+            positions[3::5] = torch.clamp(positions[3::5], min=0.0, max=0.7)
+            positions[4::5] = torch.clamp(positions[4::5], min=0.0, max=0.7)
             target_pos = gymtorch.unwrap_tensor(positions)
             self.gym.set_dof_position_target_tensor(self.sim, target_pos)
             self.simulate()
