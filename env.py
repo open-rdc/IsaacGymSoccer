@@ -29,6 +29,7 @@ class Soccer:
         sim_params.physx.rest_offset = 0.001
         sim_params.physx.contact_offset = 0.02
         sim_params.physx.use_gpu = True
+        sim_params.physx.max_gpu_contact_pairs = 3000000
 
         self.dt = sim_params.dt
         self.walking_period = 0.34
