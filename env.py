@@ -29,7 +29,7 @@ class Soccer:
         sim_params.physx.rest_offset = 0.001
         sim_params.physx.contact_offset = 0.02
         sim_params.physx.use_gpu = True
-        sim_params.physx.max_gpu_contact_pairs = 3000000
+        sim_params.physx.max_gpu_contact_pairs = 1500000
 
         self.dt = sim_params.dt
         self.walking_period = 0.34
@@ -38,7 +38,8 @@ class Soccer:
         # task-specific parameters
         self.num_obs = 5 + (self.n_agents*2-1)*2 # self pos 3 + ball 2 + num_others * 2
         self.num_act = 1 #
-        self.actions = torch.tensor([[0.3, 0.0 ,0.0 ,0.0 ,0.0], [-0.3, 0.0, 0.0, 0.0, 0.0], [0.0, 0.2, 0.0, 0.0, 0.0], [0.0, -0.2, 0.0, 0.0, 0.0], [0.0, 0.0, -0.5, 0.0, 0.0], [0.0, 0.0, 0.5, 0.0, 0.0], [0.0, 0.0, 0.0, 6.0, 0.0], [0.0, 0.0, 0.0, 0.0, 6.0], [0.0, 0.0, 0.0, 0.0, 0.0]], device=self.args.sim_device)
+        self.actions = torch.tensor([[0.5, 0.0 ,0.0 ,0.0 ,0.0], [-0.5, 0.0, 0.0, 0.0, 0.0], [0.0, 0.5, 0.0, 0.0, 0.0], [0.0, -0.5, 0.0, 0.0, 0.0], [0.0, 0.0, -0.5, 0.0, 0.0], [0.0, 0.0, 0.5, 0.0, 0.0], [0.0, 0.0, 0.0, 12.0, 0.0], [0.0, 0.0, 0.0, 0.0, 12.0], [0.0, 0.0, 0.0, 0.0, 0.0]], device=self.args.sim_device)
+        #self.actions = torch.tensor([[0.3, 0.0 ,0.0 ,0.0 ,0.0], [-0.3, 0.0, 0.0, 0.0, 0.0], [0.0, 0.2, 0.0, 0.0, 0.0], [0.0, -0.2, 0.0, 0.0, 0.0], [0.0, 0.0, -0.5, 0.0, 0.0], [0.0, 0.0, 0.5, 0.0, 0.0], [0.0, 0.0, 0.0, 6.0, 0.0], [0.0, 0.0, 0.0, 0.0, 6.0], [0.0, 0.0, 0.0, 0.0, 0.0]], device=self.args.sim_device)
         #foward, backword, left, right, cw, ccw, left kick, right kick, stop
 
         self.max_episode_length = self.args.episode_length  # maximum episode length
@@ -378,8 +379,9 @@ class Soccer:
 def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_episode_length, n_agents):
     # type: (Tensor, Tensor, Tensor, Tensor, Tensor, float, int) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]
     goal_reward = 1000.0
-    velocity_reward = 10.0
-    out_of_field_reward = -100.0
+    #velocity_reward = 10.0
+    velocity_reward = 100.0
+    out_of_field_reward = -10.0
     collision_reward = -0.1
     
     obs_mask = (torch.arange(obs_buf.shape[0]) % (n_agents*2) < n_agents)
