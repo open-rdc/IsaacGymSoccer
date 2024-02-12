@@ -378,7 +378,7 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
     # type: (Tensor, Tensor, Tensor, Tensor, Tensor, float, int) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]
     goal_reward = 1000.0
     velocity_reward = 10.0
-    out_of_field_reward = -10.0
+    out_of_field_reward = -100.0
     collision_reward = -0.1
     
     obs_mask = (torch.arange(obs_buf.shape[0]) % (n_agents*2) < n_agents)
