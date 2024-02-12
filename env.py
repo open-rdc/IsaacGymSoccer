@@ -235,12 +235,13 @@ class Soccer:
             return
 
         # randomise initial positions and velocities
-        min_values = torch.tensor([-0.5, -0.2, 0, 0, 0]+[-4, -2.5, 0, 0, 0]*(self.n_agents-1)+[1.0, -0.2, 3.14, 0, 0]+[1, -2.5, 3.14, 0, 0]*(self.n_agents-1), device=self.args.sim_device)
-        max_values = torch.tensor([-0.3, 0.2, 0, 0, 0]+[-1, 2.5, 0, 0, 0]*(self.n_agents-1)+[1.2, 0.2, 3.14, 0, 0]+[4, 2.5, 3.14, 0, 0]*(self.n_agents-1), device=self.args.sim_device)
+        min_values = torch.tensor([-0.5, -1.0, -np.pi, 0, 0]+[-4, -2.5, -np.pi, 0, 0]*(self.n_agents-1)+[1.0, -1.0, -np.pi, 0, 0]+[1, -2.5, -np.pi, 0, 0]*(self.n_agents-1), device=self.args.sim_device)
+        max_values = torch.tensor([-0.3, 1.0, np.pi, 0, 0]+[-1, 2.5, np.pi, 0, 0]*(self.n_agents-1)+[1.2, 1.0, np.pi, 0, 0]+[4, 2.5, np.pi, 0, 0]*(self.n_agents-1), device=self.args.sim_device)
         random_tensor = torch.rand((len(env_ids), self.num_dof), device=self.args.sim_device)
         positions = min_values + (max_values- min_values) * random_tensor
 
         self.root_states[env_ids] = self.root_init_state
+        self.root_states[env_ids,1,1] = 5.0*torch.rand(env_ids.numel(), device=self.args.sim_device)-2.5
         actor_indices = self.all_actor_indices[env_ids].flatten()
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
@@ -316,6 +317,7 @@ class Soccer:
         translation = actions0[:, :2].unsqueeze(-1)
         rotated_translation = torch.matmul(rotation_matrix, translation).squeeze(-1)
         actions0[:,:2] = rotated_translation
+        actions0[:,:3] += 0.1 * torch.randn((len(actions0),3), device=self.args.sim_device) * self.walking_period
         actions_tensor[:] = actions0.flatten()
         positions = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
         positions0 = self.dof_pos[:].reshape(self.args.num_envs*self.n_agents*2, 5)
