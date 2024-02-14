@@ -37,10 +37,10 @@ class Soccer:
         self.n_agents = self.args.n_agent
         # task-specific parameters
         self.num_obs = 7 + (self.n_agents*2-1)*2 # ball 2 + self pos 4 + previous action 1 + num_others 2 * 2
-        self.num_act = 1 #
+        self.num_act = 1
         self.actions = torch.tensor([[0.5, 0.0 ,0.0 ,0.0 ,0.0], [-0.5, 0.0, 0.0, 0.0, 0.0], [0.0, 0.5, 0.0, 0.0, 0.0], [0.0, -0.5, 0.0, 0.0, 0.0], [0.0, 0.0, -0.5, 0.0, 0.0], [0.0, 0.0, 0.5, 0.0, 0.0], [0.0, 0.0, 0.0, 12.0, 0.0], [0.0, 0.0, 0.0, 0.0, 12.0], [0.0, 0.0, 0.0, 0.0, 0.0]], device=self.args.sim_device)
-        #self.actions = torch.tensor([[0.3, 0.0 ,0.0 ,0.0 ,0.0], [-0.3, 0.0, 0.0, 0.0, 0.0], [0.0, 0.2, 0.0, 0.0, 0.0], [0.0, -0.2, 0.0, 0.0, 0.0], [0.0, 0.0, -0.5, 0.0, 0.0], [0.0, 0.0, 0.5, 0.0, 0.0], [0.0, 0.0, 0.0, 12.0, 0.0], [0.0, 0.0, 0.0, 0.0, 12.0], [0.0, 0.0, 0.0, 0.0, 0.0]], device=self.args.sim_device)
-        #foward, backword, left, right, cw, ccw, left kick, right kick, stop
+        # self.actions = torch.tensor([[0.3, 0.0 ,0.0 ,0.0 ,0.0], [-0.3, 0.0, 0.0, 0.0, 0.0], [0.0, 0.2, 0.0, 0.0, 0.0], [0.0, -0.2, 0.0, 0.0, 0.0], [0.0, 0.0, -0.5, 0.0, 0.0], [0.0, 0.0, 0.5, 0.0, 0.0], [0.0, 0.0, 0.0, 12.0, 0.0], [0.0, 0.0, 0.0, 0.0, 12.0], [0.0, 0.0, 0.0, 0.0, 0.0]], device=self.args.sim_device)
+        # foward, backword, left, right, cw, ccw, left kick, right kick, stop
 
         self.max_episode_length = self.args.episode_length  # maximum episode length
 
@@ -346,6 +346,23 @@ class Soccer:
 
         self.get_obs()
         self.get_reward()
+
+        # fall
+        num_others = self.n_agents * 2 - 1
+        local_robot = self.obs_buf[:, 7:7+2*num_others].view(-1, num_others, 2)
+        collisions = (torch.sum(local_robot**2, dim=2) < (0.2**2)).any(dim=1)
+        collisions_ids = collisions.nonzero(as_tuple=False).squeeze(-1)
+        selection_probability = 1.0
+        selected_mask = torch.rand(collisions_ids.shape) <= selection_probability
+        fall_ids = collisions_ids[selected_mask]
+        if fall_ids.shape[0] > 0:
+            min_values = torch.tensor([-4, -2.5, -np.pi], device=self.args.sim_device)
+            max_values = torch.tensor([-1, 2.5, np.pi], device=self.args.sim_device)
+            random_tensor = torch.rand((len(fall_ids), 3), device=self.args.sim_device)
+            positions = min_values + (max_values- min_values) * random_tensor
+            condition_mask = (fall_ids % 6) >= 3
+            positions[condition_mask] *= -1
+            self.dof_pos.view(-1, 5)[fall_ids, :3] = positions[:]
 
         robot_pos = self.obs_buf[:, 2:4]
         global_ball = torch.repeat_interleave(self.ball_pos[:,:], self.n_agents*2, dim=0)
