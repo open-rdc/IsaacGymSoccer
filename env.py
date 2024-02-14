@@ -186,7 +186,7 @@ class Soccer:
         obs[:,2:4] = global_pos
         obs[:,4] = torch.sin(yaw)
         obs[:,5] = torch.cos(yaw)
-        obs[:,6:7] = self.action_buf
+        obs[:,6:7] = self.action_buf.view(-1, 1)
         num_others = self.n_agents * 2 - 1
         global_pos3 = torch.repeat_interleave(global_pos, num_others, dim=0)
         robot_pos = torch.zeros((self.args.num_envs*self.n_agents*2*num_others, 2), device=self.args.sim_device)
@@ -314,10 +314,10 @@ class Soccer:
         sin_angles = torch.sin(angles)
         rotation_matrix = torch.stack([cos_angles, -sin_angles, sin_angles, cos_angles], dim=1).reshape(-1, 2, 2)
         non_zero_rows = (each_dof_pos[:, 3] > 0.1) | (each_dof_pos[:, 4] > 0.1)
-        self.action_buf = torch.tensor(actions[0])
-        self.action_buf[non_zero_rows] = 8
+        self.action_buf = torch.tensor(actions[0], device=self.args.sim_device)
+        self.action_buf[non_zero_rows.view(-1,3)] = 8
         actions_tensor = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
-        actions0 = self.actions[self.action_buf]
+        actions0 = self.actions[self.action_buf.flatten()]
         translation = actions0[:, :2].unsqueeze(-1)
         rotated_translation = torch.matmul(rotation_matrix, translation).squeeze(-1)
         actions0[:,:2] = rotated_translation
