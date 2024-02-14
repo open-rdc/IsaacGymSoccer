@@ -352,7 +352,7 @@ class Soccer:
         local_robot = self.obs_buf[:, 7:7+2*num_others].view(-1, num_others, 2)
         collisions = (torch.sum(local_robot**2, dim=2) < (0.2**2)).any(dim=1)
         collisions_ids = collisions.nonzero(as_tuple=False).squeeze(-1)
-        selection_probability = 1.0
+        selection_probability = 0.1
         selected_mask = torch.rand(collisions_ids.shape) <= selection_probability
         fall_ids = collisions_ids[selected_mask]
         if fall_ids.shape[0] > 0:
