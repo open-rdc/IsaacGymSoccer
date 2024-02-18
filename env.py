@@ -318,16 +318,16 @@ class Soccer:
         self.action_buf = torch.tensor(actions[0], device=self.args.sim_device)
         selected_action = self.action_buf
         selected_action[non_zero_rows.view(-1,3)] = 8
-        opposite_action_rows = ((prev_action == 0) & (self.action_buf == 1)) | ((prev_action == 1) & (self.action_buf == 0))
-        opposite_action_rows |= ((prev_action == 2) & (self.action_buf == 3)) | ((prev_action == 3) & (self.action_buf == 2))
-        opposite_action_rows |= ((prev_action == 4) & (self.action_buf == 5)) | ((prev_action == 5) & (self.action_buf == 4))
-        selected_action[opposite_action_rows] = 8
+        same_action_rows = ((selected_action == prev_action) & (selected_action < 6)).flatten()
         actions_tensor = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
         actions0 = self.actions[selected_action.flatten()]
         translation = actions0[:, :2].unsqueeze(-1)
         rotated_translation = torch.matmul(rotation_matrix, translation).squeeze(-1)
         actions0[:,:2] = rotated_translation
-        actions0[:,:3] += 0.1 * torch.randn((len(actions0),3), device=self.args.sim_device) * self.walking_period
+        actions0[same_action_rows,:2] += 0.1 * torch.randn((torch.sum(same_action_rows),2), device=self.args.sim_device) * self.walking_period
+        actions0[~same_action_rows,:2] *= 1.0 * torch.rand((torch.sum(~same_action_rows),2), device=self.args.sim_device)
+        actions0[same_action_rows,3] += 0.1 * torch.randn(torch.sum(same_action_rows), device=self.args.sim_device) * self.walking_period
+        actions0[~same_action_rows,3] += 1.0 * torch.randn(torch.sum(~same_action_rows), device=self.args.sim_device) * self.walking_period
         actions_tensor[:] = actions0.flatten()
         positions = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
         positions0 = self.dof_pos[:].reshape(self.args.num_envs*self.n_agents*2, 5)
