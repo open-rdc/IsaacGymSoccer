@@ -47,7 +47,7 @@ class Soccer:
         # allocate buffers
         self.obs_buf = torch.zeros((self.args.num_envs*self.n_agents*2, self.num_obs), device=self.args.sim_device)
         self.state_buf = torch.zeros((self.args.num_envs*self.n_agents*2, self.num_obs), device=self.args.sim_device)
-        self.action_buf = torch.zeros((self.args.num_envs*self.n_agents*2, self.num_act), device=self.args.sim_device)
+        self.action_buf = torch.zeros((self.args.num_envs*2, self.n_agents, self.num_act), device=self.args.sim_device)
         self.reward_buf = torch.zeros(self.args.num_envs*self.n_agents*2, device=self.args.sim_device)
         self.reset_buf = torch.ones(self.args.num_envs, device=self.args.sim_device, dtype=torch.long)
         self.progress_buf = torch.zeros(self.args.num_envs, device=self.args.sim_device, dtype=torch.long)
@@ -314,10 +314,16 @@ class Soccer:
         sin_angles = torch.sin(angles)
         rotation_matrix = torch.stack([cos_angles, -sin_angles, sin_angles, cos_angles], dim=1).reshape(-1, 2, 2)
         non_zero_rows = (each_dof_pos[:, 3] > 0.1) | (each_dof_pos[:, 4] > 0.1)
+        prev_action = self.action_buf
         self.action_buf = torch.tensor(actions[0], device=self.args.sim_device)
-        self.action_buf[non_zero_rows.view(-1,3)] = 8
+        selected_action = self.action_buf
+        selected_action[non_zero_rows.view(-1,3)] = 8
+        opposite_action_rows = ((prev_action == 0) & (self.action_buf == 1)) | ((prev_action == 1) & (self.action_buf == 0))
+        opposite_action_rows |= ((prev_action == 2) & (self.action_buf == 3)) | ((prev_action == 3) & (self.action_buf == 2))
+        opposite_action_rows |= ((prev_action == 4) & (self.action_buf == 5)) | ((prev_action == 5) & (self.action_buf == 4))
+        selected_action[opposite_action_rows] = 8
         actions_tensor = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
-        actions0 = self.actions[self.action_buf.flatten()]
+        actions0 = self.actions[selected_action.flatten()]
         translation = actions0[:, :2].unsqueeze(-1)
         rotated_translation = torch.matmul(rotation_matrix, translation).squeeze(-1)
         actions0[:,:2] = rotated_translation
