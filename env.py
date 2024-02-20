@@ -81,7 +81,7 @@ class Soccer:
         # step simulation to initialise tensor buffers
         self.gym.prepare_sim(self.sim)
         torch_zeros = lambda : torch.zeros(self.args.num_envs*self.n_agents, dtype=torch.float, device=self.args.sim_device, requires_grad=False)
-        self.episode_sums = {"goal": torch_zeros(), "ball_velocity": torch_zeros(), "out_of_field": torch_zeros(), "collision": torch_zeros()}
+        self.episode_sums = {"goal": torch_zeros(), "ball_velocity": torch_zeros(), "out_of_field": torch_zeros(), "collision": torch_zeros(), "rew_ball_position": torch_zeros(), "rew_ball_length": torch_zeros()}
         self.reset()
 
         self.train_team_name = "blue"
@@ -218,7 +218,7 @@ class Soccer:
         self.obs_buf[expanded_env_ids] = obs[expanded_env_ids]
 
     def get_reward(self):
-        self.reward_buf[:], self.reset_buf[:], rew_goal, rew_ball_vel, rew_out_of_field, rew_collision= compute_reward(
+        self.reward_buf[:], self.reset_buf[:], rew_goal, rew_ball_vel, rew_out_of_field, rew_collision, rew_ball_position, rew_ball_length = compute_reward(
             self.obs_buf,
             self.ball_pos,
             self.ball_vel,
@@ -231,6 +231,8 @@ class Soccer:
         self.episode_sums["ball_velocity"] += rew_ball_vel.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
         self.episode_sums["out_of_field"] += rew_out_of_field.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
         self.episode_sums["collision"] += rew_collision.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
+        self.episode_sums["rew_ball_position"] += rew_ball_position.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
+        self.episode_sums["rew_ball_length"] += rew_ball_length.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
 
     def reset(self):
         env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
@@ -399,11 +401,13 @@ class Soccer:
 # define reward function using JIT
 @torch.jit.script
 def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_episode_length, n_agents):
-    # type: (Tensor, Tensor, Tensor, Tensor, Tensor, float, int) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]
+    # type: (Tensor, Tensor, Tensor, Tensor, Tensor, float, int) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]
     goal_reward = 1000.0
     velocity_reward = 10.0
     out_of_field_reward = -10.0
     collision_reward = -0.01
+    ball_position_reward = 0.001
+    ball_length_reward = 0.01
     
     obs_mask = (torch.arange(obs_buf.shape[0]) % (n_agents*2) < n_agents)
     
@@ -451,7 +455,22 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
 
     reward = rew_goal + rew_ball_vel + rew_out_of_field + rew_collision
 
+    # ball position reward
+    rew_ball_position = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
+    rew_ball_position = torch.where(extended_ball_pos[:,0] > 1.5, torch.ones_like(rew_ball_position)*1, rew_ball_position)
+    rew_ball_position = torch.where((extended_ball_pos[:,0] > 2.5) & (torch.abs(extended_ball_pos[:,1]) < 2.5), torch.ones_like(rew_ball_position)*2, rew_ball_position)
+    rew_ball_position = torch.where(extended_ball_pos[:,0] < -1.5, torch.ones_like(rew_ball_position)*(-1), rew_ball_position)
+    rew_ball_position = torch.where((extended_ball_pos[:,0] < -2.5) & (torch.abs(extended_ball_pos[:,1]) < 2.5), torch.ones_like(rew_ball_position)*(-2), rew_ball_position)
+    rew_ball_position *= ball_position_reward
+
+    # ball length reward
+    min_val, min_id = torch.min(ball_distances.view(-1,3),dim=1)
+    rew_ball_length = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
+    rew_ball_length.view(-1,3)[torch.arange(min_id.shape[0]), min_id] = torch.exp(-min_val) * ball_length_reward
+
+    reward = rew_goal + rew_ball_vel + rew_out_of_field + rew_collision + rew_ball_position + rew_ball_length
+
     # reset
     reset = torch.where((torch.abs(ball_pos[:,0]) > 4.5) | (torch.abs(ball_pos[:,1]) > 3), torch.ones_like(reset_buf), reset_buf)
     reset = torch.where(progress_buf >= max_episode_length, torch.ones_like(reset_buf), reset)
-    return reward, reset, rew_goal, rew_ball_vel, rew_out_of_field, rew_collision
+    return reward, reset, rew_goal, rew_ball_vel, rew_out_of_field, rew_collision, rew_ball_position, rew_ball_length
