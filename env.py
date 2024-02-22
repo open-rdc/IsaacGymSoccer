@@ -328,8 +328,8 @@ class Soccer:
         actions0[:,:2] = rotated_translation
         actions0[same_action_rows,:2] += 0.1 * torch.randn((torch.sum(same_action_rows),2), device=self.args.sim_device) * self.walking_period
         actions0[~same_action_rows,:2] *= 1.0 * torch.rand((torch.sum(~same_action_rows),2), device=self.args.sim_device)
-        actions0[same_action_rows,3] += 0.1 * torch.randn(torch.sum(same_action_rows), device=self.args.sim_device) * self.walking_period
-        actions0[~same_action_rows,3] += 1.0 * torch.randn(torch.sum(~same_action_rows), device=self.args.sim_device) * self.walking_period
+        actions0[same_action_rows,2] += 0.1 * torch.randn(torch.sum(same_action_rows), device=self.args.sim_device) * self.walking_period
+        actions0[~same_action_rows,2] += 1.0 * torch.randn(torch.sum(~same_action_rows), device=self.args.sim_device) * self.walking_period
         actions_tensor[:] = actions0.flatten()
         positions = torch.zeros(self.args.num_envs * self.num_dof, device=self.args.sim_device)
         positions0 = self.dof_pos[:].reshape(self.args.num_envs*self.n_agents*2, 5)
@@ -406,7 +406,7 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
     velocity_reward = 10.0
     out_of_field_reward = -10.0
     collision_reward = -0.01
-    ball_position_reward = 0.001
+    ball_position_reward = 0.01
     ball_length_reward = 0.01
     
     obs_mask = (torch.arange(obs_buf.shape[0]) % (n_agents*2) < n_agents)
@@ -421,8 +421,6 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
     # ball velocity reward
     extended_ball_vel = torch.repeat_interleave(ball_vel[:,:], n_agents*2, dim=0)
     extended_ball_vel[~obs_mask, 0] *= -1
-    backward_ball = extended_ball_vel[:, 0] < 0
-    extended_ball_vel[backward_ball, :] = 0.0
     goal_pos = torch.tensor([4.5, 0.0], device=obs_buf.device).repeat(extended_ball_pos.shape[0], 1)
     vectors = (goal_pos - extended_ball_pos)
     norm = torch.norm(vectors)
@@ -433,10 +431,12 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
     robot_pos = obs_buf[:, 2:4]
     global_ball = torch.repeat_interleave(ball_pos[:,:], n_agents*2, dim=0)
     local_ball = global_ball - robot_pos
-    ball_distances = torch.sum(local_ball**2, dim=1)
-    without_1_0m = ball_distances > 1.0**2
+    ball_distances = torch.sqrt(torch.sum(local_ball**2,dim=1))
+    without_1_0m = ball_distances > 1.0
     dot_products[without_1_0m] = 0.0
     rew_ball_vel = dot_products * velocity_reward
+    minus_rew_ball_vel = rew_ball_vel < 0
+    rew_ball_vel[minus_rew_ball_vel] = 0.0
 
     # out of field reward
     rew_out_of_field = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
