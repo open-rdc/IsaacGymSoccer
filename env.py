@@ -81,7 +81,7 @@ class Soccer:
         # step simulation to initialise tensor buffers
         self.gym.prepare_sim(self.sim)
         torch_zeros = lambda : torch.zeros(self.args.num_envs*self.n_agents, dtype=torch.float, device=self.args.sim_device, requires_grad=False)
-        self.episode_sums = {"goal": torch_zeros(), "ball_velocity": torch_zeros(), "out_of_field": torch_zeros(), "collision": torch_zeros(), "ball_position": torch_zeros(), "ball_length": torch_zeros()}
+        self.episode_sums = {"goal": torch_zeros(), "ball_velocity": torch_zeros(), "out_of_field": torch_zeros(), "collision": torch_zeros(), "ball_position": torch_zeros(), "ball_distance": torch_zeros()}
         self.reset()
 
         self.train_team_name = "blue"
@@ -205,21 +205,19 @@ class Soccer:
         expanded_env_ids = repeated_ids * self.n_agents*2 + increment_ids
         self.state_buf[expanded_env_ids] = obs[expanded_env_ids]
 
-        #view_ratio = math.tan(math.radians(80))
-        #out_of_view = (local_ball[:,0] * view_ratio) < torch.abs(local_ball[:,1])
-        #local_ball[out_of_view, :] = -100.0
-        #obs[:,:2] = local_ball
+        view_ratio = math.tan(math.radians(80))
+        out_of_view = (local_ball[:,0] * view_ratio) < torch.abs(local_ball[:,1])
+        local_ball[out_of_view, :] = -100.0
+        obs[:,:2] = local_ball
         
-        #out_of_view = (local_robot[:,0] * view_ratio) < torch.abs(local_robot[:,1]) 
-        #local_robot[out_of_view, :] = -100.0
-        #obs[:,5:7] = local_robot[0::3,:]
-        #obs[:,7:9] = local_robot[1::3,:]
-        #obs[:,9:11] = local_robot[2::3,:]
+        out_of_view = (local_robot[:,0] * view_ratio) < torch.abs(local_robot[:,1])
+        local_robot[out_of_view, :] = -100.0
+        obs[:,7:7+num_others*2] = local_robot.view(len(obs), num_others*2)
         self.obs_buf[expanded_env_ids] = obs[expanded_env_ids]
 
     def get_reward(self):
-        self.reward_buf[:], self.reset_buf[:], rew_goal, rew_ball_vel, rew_out_of_field, rew_collision, rew_ball_position, rew_ball_length = compute_reward(
-            self.obs_buf,
+        self.reward_buf[:], self.reset_buf[:], rew_goal, rew_ball_vel, rew_out_of_field, rew_collision, rew_ball_position, rew_ball_distance = compute_reward(
+            self.state_buf,
             self.ball_pos,
             self.ball_vel,
             self.reset_buf,
@@ -232,7 +230,7 @@ class Soccer:
         self.episode_sums["out_of_field"] += rew_out_of_field.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
         self.episode_sums["collision"] += rew_collision.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
         self.episode_sums["ball_position"] += rew_ball_position.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
-        self.episode_sums["ball_length"] += rew_ball_length.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
+        self.episode_sums["ball_distance"] += rew_ball_distance.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
 
     def reset(self):
         env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
@@ -407,7 +405,7 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
     out_of_field_reward = -100.0
     collision_reward = -1.0
     ball_position_reward = 10.0
-    ball_length_reward = 1.0
+    ball_distance_reward = 1.0
     
     obs_mask = (torch.arange(obs_buf.shape[0]) % (n_agents*2) < n_agents)
     
@@ -463,14 +461,14 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
     rew_ball_position = torch.where((extended_ball_pos[:,0] < -2.5) & (torch.abs(extended_ball_pos[:,1]) < 2.5), torch.ones_like(rew_ball_position)*(-2), rew_ball_position)
     rew_ball_position *= ball_position_reward
 
-    # ball length reward
+    # ball distance reward
     min_val, min_id = torch.min(ball_distances.view(-1,3),dim=1)
-    rew_ball_length = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
-    rew_ball_length.view(-1,3)[torch.arange(min_id.shape[0]), min_id] = torch.exp(-min_val) * ball_length_reward
+    rew_ball_distance = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
+    rew_ball_distance.view(-1,3)[torch.arange(min_id.shape[0]), min_id] = torch.exp(-min_val) * ball_distance_reward
 
-    reward = rew_goal + rew_ball_vel + rew_out_of_field + rew_collision + rew_ball_position + rew_ball_length
+    reward = rew_goal + rew_ball_vel + rew_out_of_field + rew_collision + rew_ball_position + rew_ball_distance
 
     # reset
     reset = torch.where((torch.abs(ball_pos[:,0]) > 4.5) | (torch.abs(ball_pos[:,1]) > 3), torch.ones_like(reset_buf), reset_buf)
     reset = torch.where(progress_buf >= max_episode_length, torch.ones_like(reset_buf), reset)
-    return reward, reset, rew_goal, rew_ball_vel, rew_out_of_field, rew_collision, rew_ball_position, rew_ball_length
+    return reward, reset, rew_goal, rew_ball_vel, rew_out_of_field, rew_collision, rew_ball_position, rew_ball_distance
