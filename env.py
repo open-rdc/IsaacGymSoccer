@@ -29,7 +29,7 @@ class Soccer:
         sim_params.physx.rest_offset = 0.001
         sim_params.physx.contact_offset = 0.02
         sim_params.physx.use_gpu = True
-        sim_params.physx.max_gpu_contact_pairs = 1500000
+        sim_params.physx.max_gpu_contact_pairs = 3000000
 
         self.dt = sim_params.dt
         self.walking_period = 0.34
@@ -81,7 +81,7 @@ class Soccer:
         # step simulation to initialise tensor buffers
         self.gym.prepare_sim(self.sim)
         torch_zeros = lambda : torch.zeros(self.args.num_envs*self.n_agents, dtype=torch.float, device=self.args.sim_device, requires_grad=False)
-        self.episode_sums = {"goal": torch_zeros(), "ball_velocity": torch_zeros(), "out_of_field": torch_zeros(), "collision": torch_zeros(), "rew_ball_position": torch_zeros(), "rew_ball_length": torch_zeros()}
+        self.episode_sums = {"goal": torch_zeros(), "ball_velocity": torch_zeros(), "out_of_field": torch_zeros(), "collision": torch_zeros(), "ball_position": torch_zeros(), "ball_length": torch_zeros()}
         self.reset()
 
         self.train_team_name = "blue"
@@ -231,8 +231,8 @@ class Soccer:
         self.episode_sums["ball_velocity"] += rew_ball_vel.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
         self.episode_sums["out_of_field"] += rew_out_of_field.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
         self.episode_sums["collision"] += rew_collision.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
-        self.episode_sums["rew_ball_position"] += rew_ball_position.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
-        self.episode_sums["rew_ball_length"] += rew_ball_length.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
+        self.episode_sums["ball_position"] += rew_ball_position.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
+        self.episode_sums["ball_length"] += rew_ball_length.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
 
     def reset(self):
         env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
@@ -241,8 +241,8 @@ class Soccer:
             return
 
         # randomise initial positions and velocities
-        min_values = torch.tensor([-0.5, -1.0, -np.pi, 0, 0]+[-4, -2.5, -np.pi, 0, 0]*(self.n_agents-1)+[1.0, -1.0, -np.pi, 0, 0]+[1, -2.5, -np.pi, 0, 0]*(self.n_agents-1), device=self.args.sim_device)
-        max_values = torch.tensor([-0.3, 1.0, np.pi, 0, 0]+[-1, 2.5, np.pi, 0, 0]*(self.n_agents-1)+[1.2, 1.0, np.pi, 0, 0]+[4, 2.5, np.pi, 0, 0]*(self.n_agents-1), device=self.args.sim_device)
+        min_values = torch.tensor([-4, -2.5, -np.pi, 0, 0]*self.n_agents+[-1, -2.5, -np.pi, 0, 0]*self.n_agents, device=self.args.sim_device)
+        max_values = torch.tensor([ 1,  2.5,  np.pi, 0, 0]*self.n_agents+[ 4,  2.5,  np.pi, 0, 0]*self.n_agents, device=self.args.sim_device)
         random_tensor = torch.rand((len(env_ids), self.num_dof), device=self.args.sim_device)
         positions = min_values + (max_values- min_values) * random_tensor
 
@@ -302,7 +302,7 @@ class Soccer:
         self.gym.draw_viewer(self.viewer, self.sim, True)
         self.gym.sync_frame_time(self.sim)
 
-    def exit(self):
+    def close(self):
         # close the simulator in a graceful way
         if not self.args.headless:
             self.gym.destroy_viewer(self.viewer)
@@ -360,7 +360,7 @@ class Soccer:
         local_robot = self.obs_buf[:, 7:7+2*num_others].view(-1, num_others, 2)
         collisions = (torch.sum(local_robot**2, dim=2) < (0.2**2)).any(dim=1)
         collisions_ids = collisions.nonzero(as_tuple=False).squeeze(-1)
-        selection_probability = 0.1
+        selection_probability = 0.0
         selected_mask = torch.rand(collisions_ids.shape) <= selection_probability
         fall_ids = collisions_ids[selected_mask]
         if fall_ids.shape[0] > 0:
@@ -403,11 +403,11 @@ class Soccer:
 def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_episode_length, n_agents):
     # type: (Tensor, Tensor, Tensor, Tensor, Tensor, float, int) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]
     goal_reward = 1000.0
-    velocity_reward = 10.0
-    out_of_field_reward = -10.0
-    collision_reward = -0.01
-    ball_position_reward = 0.01
-    ball_length_reward = 0.01
+    velocity_reward = 1000.0
+    out_of_field_reward = -100.0
+    collision_reward = -1.0
+    ball_position_reward = 10.0
+    ball_length_reward = 1.0
     
     obs_mask = (torch.arange(obs_buf.shape[0]) % (n_agents*2) < n_agents)
     
