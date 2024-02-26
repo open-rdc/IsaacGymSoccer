@@ -52,8 +52,8 @@ class Soccer:
         self.reset_buf = torch.ones(self.args.num_envs, device=self.args.sim_device, dtype=torch.long)
         self.progress_buf = torch.zeros(self.args.num_envs, device=self.args.sim_device, dtype=torch.long)
 
-        self.observation_space = [Box(low=-100, high=100, shape = ([self.num_obs]), dtype=np.float16) for _ in range(self.args.num_envs*self.n_agents)]
-        self.share_observation_space = [Box(low=-100, high=100, shape = ([self.num_obs]), dtype=np.float16) for _ in range(self.args.num_envs*self.n_agents)]
+        self.observation_space = [Box(low=-10, high=10, shape = ([self.num_obs]), dtype=np.float16) for _ in range(self.args.num_envs*self.n_agents)]
+        self.share_observation_space = [Box(low=-10, high=10, shape = ([self.num_obs]), dtype=np.float16) for _ in range(self.args.num_envs*self.n_agents)]
         self.action_space = [Discrete(9) for _ in range(self.args.num_envs*self.n_agents)]
 
         # acquire gym interface
@@ -207,11 +207,11 @@ class Soccer:
 
         view_ratio = math.tan(math.radians(80))
         out_of_view = (local_ball[:,0] * view_ratio) < torch.abs(local_ball[:,1])
-        local_ball[out_of_view, :] = -100.0
+        local_ball[out_of_view, :] = -10.0
         obs[:,:2] = local_ball
         
         out_of_view = (local_robot[:,0] * view_ratio) < torch.abs(local_robot[:,1])
-        local_robot[out_of_view, :] = -100.0
+        local_robot[out_of_view, :] = -10.0
         obs[:,7:7+num_others*2] = local_robot.view(len(obs), num_others*2)
         self.obs_buf[expanded_env_ids] = obs[expanded_env_ids]
 
