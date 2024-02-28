@@ -107,9 +107,9 @@ class SoccerRunner(Runner):
                     print("some episodes done, average rewards: {}, scores: {}"
                           .format(aver_episode_rewards, aver_episode_scores))
 
-                    reward = self.envs.each_reward()
-                    for key in reward.keys():
-                        self.writter.add_scalars(key, {"aver_rewards": reward[key]}, total_num_steps)
+                reward = self.envs.each_reward()
+                for key in reward.keys():
+                    self.writter.add_scalars(key, {"aver_rewards": reward[key]/self.episode_length/self.log_interval}, total_num_steps)
 
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
