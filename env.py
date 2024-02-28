@@ -232,7 +232,7 @@ class Soccer:
         self.episode_sums["collision"] += rew_collision.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
         self.episode_sums["ball_position"] += rew_ball_position.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
         self.episode_sums["ball_distance"] += rew_ball_distance.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
-        self.episode_sums["ball_traking"] += rew_ball_tracking.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
+        self.episode_sums["ball_tracking"] += rew_ball_tracking.reshape(-1, self.n_agents*2)[:, :self.n_agents].flatten()
 
     def reset(self):
         env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
