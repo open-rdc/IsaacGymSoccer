@@ -472,7 +472,7 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
     # ball tracking reward
     rew_ball_tracking = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
     view_ratio = math.tan(math.radians(80))
-    out_of_view = (local_ball[:,0] * view_ratio) < torch.abs(local_ball[:,1])
+    out_of_view = (obs_buf[:,0] * view_ratio) < torch.abs(obs_buf[:,1])
     rew_ball_tracking[~out_of_view] = ball_tracking_reward
 
     reward = rew_goal + rew_ball_vel + rew_out_of_field + rew_collision + rew_ball_position + rew_ball_distance + rew_ball_tracking
