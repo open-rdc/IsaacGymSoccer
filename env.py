@@ -88,6 +88,9 @@ class Soccer:
         self.copy_team_name = "red"
         self.extras = {}
 
+        self.goals = 0
+        self.goals_against = 0
+
     def create_envs(self):
         # add ground plane
         plane_params = gymapi.PlaneParams()
@@ -355,6 +358,10 @@ class Soccer:
         self.get_obs()
         self.get_reward()
 
+        self.goals += torch.sum((self.ball_pos[:,0] > 4.5) & (torch.abs(self.ball_pos[:,1]) < 1.3)).item()
+        self.goals_against += torch.sum((self.ball_pos[:,0] < -4.5) & (torch.abs(self.ball_pos[:,1]) < 1.3)).item()
+        print("goal: "+str(self.goals)+", goals against: "+str(self.goals_against))
+
         # fall
         num_others = self.n_agents * 2 - 1
         local_robot = self.obs_buf[:, 7:7+2*num_others].view(-1, num_others, 2)
@@ -453,8 +460,6 @@ def compute_reward(obs_buf, ball_pos, ball_vel, reset_buf, progress_buf, max_epi
     collisions = torch.sum(robot_positions**2, dim=2) < (0.2**2)
     collision = torch.any(collisions, dim=1)
     rew_collision[collision] += collision_reward
-
-    reward = rew_goal + rew_ball_vel + rew_out_of_field + rew_collision
 
     # ball position reward
     rew_ball_position = torch.zeros(obs_buf.shape[0], device=obs_buf.device)
